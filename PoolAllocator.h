@@ -41,6 +41,7 @@ namespace ME
 			for (size_t i = 0; i < m_PoolCount; i++)
 				m_UpstreamMemory->deallocate(*(m_Pools + i), sizeof(bucket) * ME_BUCKETCOUNT, "POOLALLOCATOR: Deallocating pool");
 			m_UpstreamMemory->deallocate((bucket*)m_Pools, sizeof(bucket*) * m_PoolCount, "POOLALLOCATOR: Deallocating pool ledger");
+			delete m_UpstreamMemory;
 		}
 
 		virtual void* allocate(const size_t& size = ME_BUCKETSIZE) override
@@ -97,13 +98,13 @@ namespace ME
 		virtual void* verified_allocate(void* end_ptr, const size_t& size) override
 		{
 			bucket* cur = reinterpret_cast<bucket*>(end_ptr);
-			double ME_BUCKETCOUNT = (double)size / sizeof(bucket);
+			double bucketcount = (double)size / sizeof(bucket);
 			size_t count = 0;
 
-			if (ME_BUCKETCOUNT > size / sizeof(bucket))
-				count = static_cast<size_t>(ME_BUCKETCOUNT + 1);
+			if (bucketcount > size / sizeof(bucket))
+				count = static_cast<size_t>(bucketcount + 1);
 			else
-				count = static_cast<size_t>(ME_BUCKETCOUNT);
+				count = static_cast<size_t>(bucketcount);
 
 			for (size_t i = 0; i <= count; i++)
 			{
@@ -122,13 +123,16 @@ namespace ME
 		}
 		virtual void deallocate(void* ptr, const size_t& size) noexcept override
 		{
-			double ME_BUCKETCOUNT = (double)size / sizeof(bucket);
+			if (!size)
+				return;
+
+			double bucketcount = (double)size / sizeof(bucket);
 			size_t count = 0;
 
-			if (ME_BUCKETCOUNT > size / sizeof(bucket))
-				count = static_cast<size_t>(ME_BUCKETCOUNT + 1);
+			if (bucketcount > size / sizeof(bucket))
+				count = static_cast<size_t>(bucketcount + 1);
 			else
-				count = static_cast<size_t>(ME_BUCKETCOUNT);
+				count = static_cast<size_t>(bucketcount);
 
 			bucket* cur = reinterpret_cast<bucket*>(ptr);
 			for (size_t i = 1; i <= count; i++)

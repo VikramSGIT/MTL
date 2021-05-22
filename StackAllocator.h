@@ -14,11 +14,12 @@ namespace ME
 		StackAllocator()
 			:MemoryManager(new upstreammemory), Capacity(ME_STACKSIZE), Size(0)
 		{
-			Head = m_UpstreamMemory->allocate(ME_STACKSIZE, "STACKALLOCATOR: Initializing stack")
+			Head = m_UpstreamMemory->allocate(ME_STACKSIZE, "STACKALLOCATOR: Initializing stack");
 		}
 		~StackAllocator()
 		{
 			m_UpstreamMemory->deallocate(Head, ME_STACKSIZE, "STACKALLOCATOR: Deintializing stack");
+			delete m_UpstreamMemory;
 		}
 
 		void* allocate(const size_t& size) override
@@ -38,7 +39,7 @@ namespace ME
 
 		void release() override
 		{
-			Tail = Head
+			Tail = Head;
 		}
 
 		size_t getFreeMemory() const override { return Capacity; }

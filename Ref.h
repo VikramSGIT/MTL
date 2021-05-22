@@ -1,6 +1,8 @@
 #ifndef REF
 #define REF
 
+#include<type_traits>
+
 #include "MemoryManager.h"
 
 namespace ME
@@ -11,23 +13,19 @@ namespace ME
 		Ref()
 			:ptr_count(nullptr), Ptr(nullptr), m_UpstreamMemory(new upstreammemory) {}
 
-		Ref(const Ref& Reference) noexcept
-			:Ptr(Reference.Ptr), ptr_count(Reference.ptr_count), m_UpstreamMemory(Reference.m_UpstreamMemory)
+		
+		Ref(Ref& Reference)
 		{
-			if (ptr_count != nullptr) 
-			{
-				*ptr_count += 1;
-			}
+			swap(Reference);
 		}
 
-		Ref(const Ref&& Reference) noexcept
-			:Ptr(Reference.Ptr), ptr_count(Reference.ptr_count), m_UpstreamMemory(Reference.m_UpstreamMemory)
+		Ref(Ref&& Reference)
 		{
-			if (ptr_count != nullptr) 
-			{
-				*ptr_count += 1;
-			}
+			swap(Reference);
 		}
+
+		template<typename same> bool check(same, same) { return same; }
+		template<typename left, typename right> bool check(left, right) { return false; }
 
 		~Ref()
 		{
@@ -38,6 +36,7 @@ namespace ME
 					destruct(Ptr);
 					m_UpstreamMemory->deallocate(Ptr, sizeof(T), "REF: Deinitializing ref");
 					m_UpstreamMemory->deallocate(ptr_count, sizeof(size_t), "REF: Deinitializing ref count");
+					delete m_UpstreamMemory;
 				}
 				else 
 				{
@@ -49,17 +48,30 @@ namespace ME
 		void reset() { dealloc(Ptr); }
 		T get() const noexcept { return *Ptr; }
 
+		template<typename U>
+		void swap(Ref<U>& ref)
+		{
+			this->~Ref();
+
+			this->Ptr = ref.Ptr;
+			this->m_UpstreamMemory = ref.m_UpstreamMemory;
+			if (ref.ptr_count != nullptr)
+			{
+				this->ptr_count = ref.ptr_count;
+				*this->ptr_count += 1;
+			}
+		}
+
 		T& operator*() noexcept { return *Ptr; }
 		T* operator->() const noexcept { return Ptr; }
 
-	private:
-
-		template<typename ...Args>
-		void construct(T* ptr, Args ...args)
+		template<typename U>
+		Ref<T>& operator=(Ref<U>& ref)
 		{
-			new (ptr) T(args...);
+			swap(ref);
+			return *this;
 		}
-
+	private:
 		void destruct(T* ptr)
 		{
 			ptr->~T();
@@ -68,20 +80,18 @@ namespace ME
 		size_t* ptr_count;
 		T* Ptr;
 		UpstreamMemory* m_UpstreamMemory;
-		template<typename ...Args>
-		Ref(Args ...args)
-			:m_UpstreamMemory(new upstreammemory) 
-		{
-			Ptr = static_cast<T*>(m_UpstreamMemory->allocate(sizeof(T), "REF: Initializing ref"));
-			construct(Ptr, args...);
-			ptr_count = static_cast<T*>(m_UpstreamMemory->allocate(sizeof(size_t), "REF: Initializing ref count"));
-			*ptr_count = 1;
-		}
 		template<typename T, typename ...Args, typename upstreammemory> friend Ref<T> CreateRef(Args&& ...args);
+		friend class Ref;
 	};
 	template<typename T, typename ...Args, typename upstreammemory = alloc_dealloc_UpstreamMemory> Ref<T> CreateRef(Args&& ...args) 
-	{ 
-		return Ref<T, upstreammemory>(std::forward<Args>(args)...); 
+	{
+		Ref<T> res;
+		res.m_UpstreamMemory = new upstreammemory;
+		res.Ptr = (T*)(res.m_UpstreamMemory->allocate(sizeof(T), "REF: Initializing ref"));
+		new (res.Ptr) T(args...);
+		res.ptr_count = (size_t*)(res.m_UpstreamMemory->allocate(sizeof(size_t), "REF: Initializing ref count"));
+		*res.ptr_count = 1;
+		return res;
 	}
 }
 #endif // !REF

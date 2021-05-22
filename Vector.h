@@ -20,6 +20,7 @@ namespace ME
 		~Vector()
 		{
 			m_UpstreamMemory->deallocate(m_Head, sizeof(T) * (m_Size + m_Capacity), "VECTOR: Deinitializing");
+			delete m_UpstreamMemory;
 		}
 
 		void push_back(const T& element)

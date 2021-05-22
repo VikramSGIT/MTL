@@ -4,12 +4,7 @@
 #include <memory>
 #include <iostream>
 
-#define B * 1
-#define KB * 1024
-#define MB * 1048576
-#define GB * 1073741824
-
-#define ME_MEMMAX 100 KB
+#define ME_MEMMAX (100 * 1024)
 #define ME_MEMERROR(condition, msg)\
 if(condition){\
 std::cout << msg << std::endl;\

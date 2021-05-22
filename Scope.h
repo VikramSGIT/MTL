@@ -15,6 +15,7 @@ namespace ME
 		{
 			destruct(Ptr);
 			m_UpstreamMemory->deallocate(Ptr, sizeof(T), "SCOPE: Deallocating scope");
+			delete m_UpstreamMemory;
 		}
 
 		T* get() const noexcept
