@@ -13,13 +13,14 @@ namespace ME
 		Ref()
 			:ptr_count(nullptr), Ptr(nullptr), m_UpstreamMemory(new upstreammemory) {}
 
-		
-		Ref(Ref& Reference)
+		template<typename U>
+		Ref(Ref<U>& Reference)
 		{
 			swap(Reference);
 		}
 
-		Ref(Ref&& Reference)
+		template<typename U>
+		Ref(Ref<U>&& Reference)
 		{
 			swap(Reference);
 		}
@@ -45,7 +46,7 @@ namespace ME
 			}
 		}
 
-		void reset() { dealloc(Ptr); }
+		void reset() { m_UpstreamMemory->deallocate(Ptr); }
 		T get() const noexcept { return *Ptr; }
 
 		template<typename U>
@@ -86,9 +87,11 @@ namespace ME
 	template<typename T, typename ...Args, typename upstreammemory = alloc_dealloc_UpstreamMemory> Ref<T> CreateRef(Args&& ...args) 
 	{
 		Ref<T> res;
+
 		res.m_UpstreamMemory = new upstreammemory;
 		res.Ptr = (T*)(res.m_UpstreamMemory->allocate(sizeof(T), "REF: Initializing ref"));
 		new (res.Ptr) T(args...);
+
 		res.ptr_count = (size_t*)(res.m_UpstreamMemory->allocate(sizeof(size_t), "REF: Initializing ref count"));
 		*res.ptr_count = 1;
 		return res;
