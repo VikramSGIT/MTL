@@ -11,6 +11,9 @@ namespace ME
 		Scope()
 			:Ptr(nullptr), m_UpstreamMemory(new upstreammemory) {}
 		
+		Scope(nullptr_t)
+			:Ptr(nullptr), m_UpstreamMemory(new upstreammemory) {}
+
 		~Scope()
 		{
 			destruct(Ptr);

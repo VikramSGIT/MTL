@@ -13,6 +13,9 @@ namespace ME
 		Ref()
 			:ptr_count(nullptr), Ptr(nullptr), m_UpstreamMemory(new upstreammemory) {}
 
+		Ref(nullptr_t)
+			:ptr_count(nullptr), Ptr(nullptr), m_UpstreamMemory(new upstreammemory) {}
+
 		template<typename U>
 		Ref(Ref<U>& Reference)
 		{
@@ -46,7 +49,11 @@ namespace ME
 			}
 		}
 
-		void reset() { m_UpstreamMemory->deallocate(Ptr); }
+		void reset() 
+		{ 
+			destruct(Ptr);
+			m_UpstreamMemory->deallocate(Ptr, sizeof(T)); 
+		}
 		T get() const noexcept { return *Ptr; }
 
 		template<typename U>
@@ -65,9 +72,8 @@ namespace ME
 
 		T& operator*() noexcept { return *Ptr; }
 		T* operator->() const noexcept { return Ptr; }
-
-		template<typename U>
-		Ref<T>& operator=(Ref<U>& ref)
+		template<typename U> bool operator==(const Ref<U>& right) { return Ptr == right.Ptr; }
+		template<typename U> Ref<T>& operator=(Ref<U>& ref)
 		{
 			swap(ref);
 			return *this;
