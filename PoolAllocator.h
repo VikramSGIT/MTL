@@ -2,7 +2,7 @@
 #define POOLALLOCATOR
 
 #define ME_BUCKETSIZE 8 // make sure it to be powers of 2
-#define ME_BUCKETCOUNT 20
+#define ME_BUCKETCOUNT 200
 
 #include "MemoryManager.h"
 namespace ME

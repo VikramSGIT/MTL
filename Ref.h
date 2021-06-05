@@ -1,12 +1,15 @@
 #ifndef REF
 #define REF
 
-#include<type_traits>
-
 #include "MemoryManager.h"
 
 namespace ME
 {
+	/**
+	 Ref is Reference smart pointer built over Allocator systems of MarsEngine. This class aloow the user to have 
+	 multiple reference of a pointer.
+	 FIX: Need to make a better implementation for UpstreamMemory initializer.
+	**/
 	template<typename T, typename upstreammemory = alloc_dealloc_UpstreamMemory> class Ref
 	{
 	public:
@@ -17,19 +20,26 @@ namespace ME
 			:ptr_count(nullptr), Ptr(nullptr), m_UpstreamMemory(new upstreammemory) {}
 
 		template<typename U>
-		Ref(Ref<U>& Reference)
+		Ref(const Ref<U>& ref)
 		{
-			swap(Reference);
+			Ptr = ref.Ptr;
+			m_UpstreamMemory = ref.m_UpstreamMemory;
+			ptr_count = ref.ptr_count;
+			if (ptr_count != nullptr)
+				*ptr_count += 1;
 		}
 
 		template<typename U>
-		Ref(Ref<U>&& Reference)
+		Ref(Ref<U>&& ref)
 		{
-			swap(Reference);
-		}
+			Ptr = ref.Ptr;
+			m_UpstreamMemory = ref.m_UpstreamMemory;
+			ptr_count = ref.ptr_count;
+			if (ptr_count != nullptr)
+				*ptr_count += 1;
 
-		template<typename same> bool check(same, same) { return same; }
-		template<typename left, typename right> bool check(left, right) { return false; }
+			ref.~Ref();
+		}
 
 		~Ref()
 		{
@@ -48,7 +58,10 @@ namespace ME
 				}
 			}
 		}
-
+		/**
+		* \brief Clears the handled Object.
+		* Destroys the object and clears the handled Memory.
+		**/
 		void reset() 
 		{ 
 			destruct(Ptr);
@@ -56,26 +69,44 @@ namespace ME
 		}
 		T get() const noexcept { return *Ptr; }
 
-		template<typename U>
-		void swap(Ref<U>& ref)
+		template<typename U> void swap(Ref<U>& ref)
 		{
-			this->~Ref();
+			T* ptr = Ptr;
+			UpstreamMemory* upstream = m_UpstreamMemory;
+			size_t* count = ptr_count;
 
-			this->Ptr = ref.Ptr;
-			this->m_UpstreamMemory = ref.m_UpstreamMemory;
-			if (ref.ptr_count != nullptr)
-			{
-				this->ptr_count = ref.ptr_count;
-				*this->ptr_count += 1;
-			}
+			Ptr = ref.Ptr;
+			m_UpstreamMemory = ref.m_UpstreamMemory;
+			ptr_count = ref.ptr_count;
+
+			ref.Ptr = ptr;
+			ref.m_UpstreamMemory = upstream;
+			ref.ptr_count = count;
 		}
 
 		T& operator*() noexcept { return *Ptr; }
 		T* operator->() const noexcept { return Ptr; }
 		template<typename U> bool operator==(const Ref<U>& right) { return Ptr == right.Ptr; }
-		template<typename U> Ref<T>& operator=(Ref<U>& ref)
+		template<typename U> Ref& operator=(const Ref<U>& ref)
 		{
-			swap(ref);
+			Ptr = ref.Ptr;
+			m_UpstreamMemory = ref.m_UpstreamMemory;
+			ptr_count = ref.ptr_count;
+			if (ptr_count != nullptr)
+				*ptr_count += 1;
+
+			return *this;
+		}
+		template<typename U> Ref& operator=(Ref<U>&& ref)
+		{
+			Ptr = ref.Ptr;
+			m_UpstreamMemory = ref.m_UpstreamMemory;
+			ptr_count = ref.ptr_count;
+			if (ptr_count != nullptr)
+				*ptr_count += 1;
+
+			ref.~Ref();
+
 			return *this;
 		}
 	private:
