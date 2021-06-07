@@ -2,6 +2,7 @@
 #define MEMORYMANAGER
 
 #include <memory>
+#include <shared_mutex>
 #include <iostream>
 
 #define ME_MEMMAX (100 * 1024)

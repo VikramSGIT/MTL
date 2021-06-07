@@ -3,6 +3,7 @@
 
 #define ME_BUCKETSIZE 8 // make sure it to be powers of 2
 #define ME_BUCKETCOUNT 200
+#define ME_BUCKETGUARD 1 // used to identify the end of bucket pool
 
 #include "MemoryManager.h"
 namespace ME
@@ -22,18 +23,18 @@ namespace ME
 	{
 	public:
 		PoolAllocator()
-			:Size(ME_BUCKETSIZE), Count(ME_BUCKETCOUNT), MemoryManager(new upstreammemory),
+			:Size(ME_BUCKETCOUNT), Count(ME_BUCKETCOUNT), MemoryManager(new upstreammemory),
 			m_PoolCount(1)
 		{
-			m_PoolHead = (bucket*)m_UpstreamMemory->allocate(sizeof(bucket) * ME_BUCKETCOUNT, "POOLALLOCATOR: Pool Initialization");
+			m_PoolHead = (bucket*)m_UpstreamMemory->allocate(sizeof(bucket) * (ME_BUCKETCOUNT + ME_BUCKETGUARD), "POOLALLOCATOR: Pool Initialization");
 			m_Pools = (bucket**)m_UpstreamMemory->allocate(sizeof(bucket**), "POOLALLOCATOR: Ledger Initialization");
 			new (m_Pools) bucket* (m_PoolHead);
 
 			m_nextFree = m_PoolHead;
 
-			for (size_t i = 1; i < ME_BUCKETCOUNT; i++)
-				(m_PoolHead + (i - 1))->next = (m_PoolHead + i);
-			(m_PoolHead + ME_BUCKETCOUNT - 1)->next = nullptr;
+			for (size_t i = 0; i < ME_BUCKETCOUNT; i++)
+				new (m_PoolHead + i) bucket* (m_PoolHead + i + 1);
+			new (m_PoolHead + ME_BUCKETCOUNT)  bucket*(nullptr);
 		}
 
 		~PoolAllocator() 
@@ -47,8 +48,7 @@ namespace ME
 		virtual void* allocate(const size_t& size = ME_BUCKETSIZE) override
 		{
 
-			if (size > ME_BUCKETSIZE * ME_BUCKETCOUNT)
-				return nullptr;
+			std::shared_lock lock(mutex);
 
 			size_t continious = 0;
 			bucket* cur = m_nextFree;
@@ -67,36 +67,22 @@ namespace ME
 				if (continious * sizeof(bucket) >= size)
 				{
 					m_nextFree = temp;
+					Size -= continious;
 					return reinterpret_cast<void*>(temp - continious);
 				}
 				cur = temp;
 			}
 
-			// Pool Expantion
-			bucket* expand = (bucket*)m_UpstreamMemory->allocate(sizeof(bucket) * ME_BUCKETCOUNT, "POOLALLOCATOR: Allocating Extra Pool");
-			Count += ME_BUCKETCOUNT;
-
-			// Pool Initialization
-			for (size_t i = 1; i < ME_BUCKETCOUNT; i++)
-				new (expand + i - 1) bucket* (expand + i);
-
-			// Connecting Pool
-			(expand + ME_BUCKETCOUNT - 1)->next = m_nextFree;
-			m_nextFree = expand;
-
-			bucket** temp  = (bucket**)m_UpstreamMemory->allocate(sizeof(bucket**) * (m_PoolCount + 1),"POOLALLOCATOR: Expanding Upstream Leadger");
-			new (temp) bucket* (*m_Pools); // Copying old expanded pool pointers
-			new (temp + m_PoolCount) bucket* (expand); // Copying the new pool pointer
-			m_UpstreamMemory->deallocate(m_Pools, sizeof(bucket*) * m_PoolCount, "POOLALLOCATOR: Deallocating old upstream leadger");
-			m_Pools = temp;
-
-			m_PoolCount++;
+			expand(size);
 
 			// using recursion to allocate with newly allocated pool.
 			return allocate(size);
 		}
 		virtual void* verified_allocate(void* end_ptr, const size_t& size) override
 		{
+
+			std::shared_lock lock(mutex);
+
 			bucket* cur = reinterpret_cast<bucket*>(end_ptr);
 			double bucketcount = (double)size / sizeof(bucket);
 			size_t count = 0;
@@ -111,10 +97,10 @@ namespace ME
 				if (cur->next - cur != 1)
 					break;
 
-
 				if (i == count)
 				{
 					m_nextFree = cur;
+					Size -= count;
 					return end_ptr;
 				}
 				cur = cur->next;
@@ -123,6 +109,9 @@ namespace ME
 		}
 		virtual void deallocate(void* ptr, const size_t& size) noexcept override
 		{
+
+			std::shared_lock lock(mutex);
+
 			if (!size)
 				return;
 
@@ -147,6 +136,8 @@ namespace ME
 
 				cur = cur->next;
 			}
+
+			Size += count;
 		}
 		virtual void release() override
 		{
@@ -159,11 +150,53 @@ namespace ME
 				(m_PoolHead + (i - 1))->next = (m_PoolHead + i);
 		}
 
-		inline size_t getFreeMemory() const noexcept { return 0; }
+		inline size_t getFreeMemory() const noexcept { return Size * ME_BUCKETSIZE; }
 	private:
 
-		bucket* m_PoolHead, * m_nextFree, ** m_Pools; // a ledger of all pools
+		void expand(const size_t& size)
+		{
+			size_t count = 0;
+			if (size > ME_BUCKETCOUNT * sizeof(bucket))
+			{
+				float bucketcount = ((float)size / sizeof(bucket)) / (size / sizeof(bucket));
+
+				if (bucketcount > 0.0f)
+					count = static_cast<size_t>(bucketcount + 1);
+				else
+					count = static_cast<size_t>(bucketcount);
+			}
+			else
+			{
+				count = ME_BUCKETCOUNT;
+			}
+
+			// Pool Expantion
+			bucket* expand = (bucket*)m_UpstreamMemory->allocate(sizeof(bucket) * count, "POOLALLOCATOR: Allocating Extra Pool");
+			Count += count;
+			Size += count;
+
+			// Pool Initialization
+			for (size_t i = 1; i < count; i++)
+				new (expand + i - 1) bucket* (expand + i);
+
+			// Connecting Old to New Pool
+			(expand + count - 1)->next = m_nextFree;
+			m_nextFree = expand;
+
+			bucket** temp = (bucket**)m_UpstreamMemory->allocate(sizeof(bucket**) * (m_PoolCount + 1), "POOLALLOCATOR: Expanding Leadger");
+			// Copying old expanded pool pointers
+			for(size_t i = 0; i < m_PoolCount; i++)
+				new (temp + i) bucket* (*(m_Pools + i));
+			new (temp + m_PoolCount) bucket* (expand); // Copying the new pool pointer
+			m_UpstreamMemory->deallocate(m_Pools, sizeof(bucket*) * m_PoolCount, "POOLALLOCATOR: Deallocating old leadger");
+			m_Pools = temp;
+
+			m_PoolCount++;
+		}
+
+		bucket* m_PoolHead, * m_nextFree, ** m_Pools; // a ledger for all pools
 		size_t Size, Count, m_PoolCount;
+		mutable std::shared_mutex mutex;
 	};
 }
 #endif // !POOLALLOCATOR
