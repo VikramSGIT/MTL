@@ -19,8 +19,7 @@ namespace ME
 		Ref(nullptr_t)
 			:ptr_count(nullptr), Ptr(nullptr), m_UpstreamMemory(new upstreammemory) {}
 
-		template<typename U>
-		Ref(const Ref<U>& ref)
+		template<typename U> Ref(Ref<U>& ref)
 		{
 			Ptr = ref.Ptr;
 			m_UpstreamMemory = ref.m_UpstreamMemory;
@@ -29,16 +28,13 @@ namespace ME
 				*ptr_count += 1;
 		}
 
-		template<typename U>
-		Ref(Ref<U>&& ref)
+		template<typename U> Ref(Ref<U>&& ref)
 		{
 			Ptr = ref.Ptr;
 			m_UpstreamMemory = ref.m_UpstreamMemory;
 			ptr_count = ref.ptr_count;
 			if (ptr_count != nullptr)
 				*ptr_count += 1;
-
-			ref.~Ref();
 		}
 
 		~Ref()
@@ -104,8 +100,6 @@ namespace ME
 			ptr_count = ref.ptr_count;
 			if (ptr_count != nullptr)
 				*ptr_count += 1;
-
-			ref.~Ref();
 
 			return *this;
 		}

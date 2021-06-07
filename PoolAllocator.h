@@ -48,7 +48,7 @@ namespace ME
 		virtual void* allocate(const size_t& size = ME_BUCKETSIZE) override
 		{
 
-			std::shared_lock lock(mutex);
+			std::shared_lock<std::shared_mutex> lock(mutex);
 
 			size_t continious = 0;
 			bucket* cur = m_nextFree;
@@ -81,7 +81,7 @@ namespace ME
 		virtual void* verified_allocate(void* end_ptr, const size_t& size) override
 		{
 
-			std::shared_lock lock(mutex);
+			std::shared_lock<std::shared_mutex> lock(mutex);
 
 			bucket* cur = reinterpret_cast<bucket*>(end_ptr);
 			double bucketcount = (double)size / sizeof(bucket);
@@ -110,7 +110,7 @@ namespace ME
 		virtual void deallocate(void* ptr, const size_t& size) noexcept override
 		{
 
-			std::shared_lock lock(mutex);
+			std::shared_lock<std::shared_mutex> lock(mutex);
 
 			if (!size)
 				return;
@@ -196,7 +196,7 @@ namespace ME
 
 		bucket* m_PoolHead, * m_nextFree, ** m_Pools; // a ledger for all pools
 		size_t Size, Count, m_PoolCount;
-		mutable std::shared_mutex mutex;
+		std::shared_mutex mutex;
 	};
 }
 #endif // !POOLALLOCATOR
