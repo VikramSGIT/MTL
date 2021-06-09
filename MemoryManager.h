@@ -5,9 +5,11 @@
 #include <shared_mutex>
 #include <iostream>
 
+#define ME_CORE_WARNING(X) std::cout << X << std::endl;
+
 #define ME_MEMMAX (100 * 1024)
 #define ME_MEMERROR(condition, msg)\
-if(condition){\
+if(!(condition)){\
 std::cout << msg << std::endl;\
 throw std::bad_alloc();\
 }
@@ -78,7 +80,7 @@ namespace ME
     constexpr static T* alloc(const size_t& size)
     {
 
-        ME_MEMERROR(MemoryManager::Allocator == nullptr, "Allocator not initialized!!");
+        ME_MEMERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
 
         if (size)
         {
@@ -90,7 +92,7 @@ namespace ME
     constexpr static T* allocon(const Args&& ...args)
     {
 
-        ME_MEMERROR(MemoryManager::Allocator == nullptr, "Allocator not initialized!!");
+        ME_MEMERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
 
         T* ptr = (T*)MemoryManager::Allocator->allocate(sizeof(T));
         new (ptr) T(args...);
@@ -100,7 +102,7 @@ namespace ME
     constexpr static void dealloc(T* ptr, const size_t& size)
     {
 
-        ME_MEMERROR(MemoryManager::Allocator == nullptr, "Allocator not initialized!!");
+        ME_MEMERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
 
         MemoryManager::Allocator->deallocate((void*)ptr, size);
     }
@@ -108,7 +110,7 @@ namespace ME
     constexpr static T* realloc(T* end_ptr, const size_t& size)
     {
 
-        ME_MEMERROR(MemoryManager::Allocator == nullptr, "Allocator not initialized!!");
+        ME_MEMERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
 
         return (T*)MemoryManager::Allocator->verified_allocate(end_ptr, sizeof(T) * size);
     }

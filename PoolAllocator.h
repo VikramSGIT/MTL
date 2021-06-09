@@ -2,7 +2,7 @@
 #define POOLALLOCATOR
 
 #define ME_BUCKETSIZE 8 // make sure it to be powers of 2
-#define ME_BUCKETCOUNT 1000
+#define ME_BUCKETCOUNT 10
 #define ME_BUCKETGUARD 1 // used to identify the end of bucket pool
 
 #include "MemoryManager.h"
