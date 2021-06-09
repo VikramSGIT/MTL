@@ -2,10 +2,11 @@
 #define POOLALLOCATOR
 
 #define ME_BUCKETSIZE 8 // make sure it to be powers of 2
-#define ME_BUCKETCOUNT 200
+#define ME_BUCKETCOUNT 1000
 #define ME_BUCKETGUARD 1 // used to identify the end of bucket pool
 
 #include "MemoryManager.h"
+
 namespace ME
 {
 
@@ -31,6 +32,7 @@ namespace ME
 			new (m_Pools) bucket* (m_PoolHead);
 
 			m_nextFree = m_PoolHead;
+			m_PoolEnd = m_PoolHead + Count;
 
 			for (size_t i = 0; i < ME_BUCKETCOUNT; i++)
 				new (m_PoolHead + i) bucket* (m_PoolHead + i + 1);
@@ -52,7 +54,6 @@ namespace ME
 
 			size_t continious = 0;
 			bucket* cur = m_nextFree;
-
 			// To find a contiguous pool of legnth "size"
 			while (cur != nullptr)
 			{
@@ -109,11 +110,11 @@ namespace ME
 		}
 		virtual void deallocate(void* ptr, const size_t& size) noexcept override
 		{
-
 			std::shared_lock<std::shared_mutex> lock(mutex);
 
-			if (!size)
+			if (!size || ptr == nullptr)
 				return;
+
 
 			double bucketcount = (double)size / sizeof(bucket);
 			size_t count = 0;
@@ -123,7 +124,11 @@ namespace ME
 			else
 				count = static_cast<size_t>(bucketcount);
 
+
 			bucket* cur = reinterpret_cast<bucket*>(ptr);
+
+			ME_MEMERROR(belongs(cur) && belongs(cur + count), "Memory out of Bound!!");
+
 			for (size_t i = 1; i <= count; i++)
 			{
 				if (i == count)
@@ -158,9 +163,9 @@ namespace ME
 			size_t count = 0;
 			if (size > ME_BUCKETCOUNT * sizeof(bucket))
 			{
-				float bucketcount = ((float)size / sizeof(bucket)) / (size / sizeof(bucket));
+				float bucketcount = (float)size / sizeof(bucket);
 
-				if (bucketcount > 0.0f)
+				if (bucketcount > size / sizeof(bucket))
 					count = static_cast<size_t>(bucketcount + 1);
 				else
 					count = static_cast<size_t>(bucketcount);
@@ -171,16 +176,16 @@ namespace ME
 			}
 
 			// Pool Expantion
-			bucket* expand = (bucket*)m_UpstreamMemory->allocate(sizeof(bucket) * count, "POOLALLOCATOR: Allocating Extra Pool");
+			bucket* expand = (bucket*)m_UpstreamMemory->allocate(sizeof(bucket) * (count + ME_BUCKETGUARD), "POOLALLOCATOR: Allocating Extra Pool");
 			Count += count;
 			Size += count;
 
 			// Pool Initialization
-			for (size_t i = 1; i < count; i++)
-				new (expand + i - 1) bucket* (expand + i);
+			for (size_t i = 0; i < count; i++)
+				new (expand + i) bucket* (expand + i + 1);
+			new (expand + count) bucket* (m_nextFree);
 
 			// Connecting Old to New Pool
-			(expand + count - 1)->next = m_nextFree;
 			m_nextFree = expand;
 
 			bucket** temp = (bucket**)m_UpstreamMemory->allocate(sizeof(bucket**) * (m_PoolCount + 1), "POOLALLOCATOR: Expanding Leadger");
@@ -190,11 +195,20 @@ namespace ME
 			new (temp + m_PoolCount) bucket* (expand); // Copying the new pool pointer
 			m_UpstreamMemory->deallocate(m_Pools, sizeof(bucket*) * m_PoolCount, "POOLALLOCATOR: Deallocating old leadger");
 			m_Pools = temp;
-
 			m_PoolCount++;
 		}
 
-		bucket* m_PoolHead, * m_nextFree, ** m_Pools; // a ledger for all pools
+		// A function that verifies that a memory segment belongs to the pool
+		// FIX: A way to verify multiple pools
+		bool belongs(bucket* ptr)
+		{
+			long long cond1 = (ptr - m_PoolHead), cond2 = (m_PoolEnd - ptr);
+			if(cond1 >= 0 && cond2 >= 0)
+				return true;
+			return false;
+		}
+
+		bucket* m_PoolHead, * m_PoolEnd, * m_nextFree, ** m_Pools; // a ledger for all pools
 		size_t Size, Count, m_PoolCount;
 		std::shared_mutex mutex;
 	};

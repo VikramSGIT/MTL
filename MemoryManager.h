@@ -11,8 +11,8 @@ if(condition){\
 std::cout << msg << std::endl;\
 throw std::bad_alloc();\
 }
-#define ME_MEMINIT() InitAllocator()
-#define ME_MEMCLEAR() DeInitAllocator()
+#define ME_MEMINIT() ME::InitAllocator()
+#define ME_MEMCLEAR() ME::DeInitAllocator()
 
 namespace ME
 {
