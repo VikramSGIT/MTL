@@ -1,6 +1,6 @@
 #include "MemoryManager.h"
 #include "PoolAllocator.h"
-//#include "Core/Logger.h"
+#include "Core/Logger.h"
 
 #include <sstream>
 

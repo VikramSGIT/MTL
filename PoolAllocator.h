@@ -2,7 +2,7 @@
 #define POOLALLOCATOR
 
 #define ME_BUCKETSIZE 8 // make sure it to be powers of 2
-#define ME_BUCKETCOUNT 10
+#define ME_BUCKETCOUNT 1000
 #define ME_BUCKETGUARD 1 // used to identify the end of bucket pool
 
 #include "MemoryManager.h"
@@ -35,14 +35,16 @@ namespace ME
 			m_PoolEnd = m_PoolHead + Count;
 
 			for (size_t i = 0; i < ME_BUCKETCOUNT; i++)
+			{
 				new (m_PoolHead + i) bucket* (m_PoolHead + i + 1);
+			}
 			new (m_PoolHead + ME_BUCKETCOUNT)  bucket*(nullptr);
 		}
 
 		~PoolAllocator() 
 		{
 			for (size_t i = 0; i < m_PoolCount; i++)
-				m_UpstreamMemory->deallocate(*(m_Pools + i), sizeof(bucket) * ME_BUCKETCOUNT, "POOLALLOCATOR: Deallocating pool");
+				m_UpstreamMemory->deallocate(*(m_Pools + i), sizeof(bucket) * (ME_BUCKETCOUNT + ME_BUCKETGUARD), "POOLALLOCATOR: Deallocating pool");
 			m_UpstreamMemory->deallocate((bucket*)m_Pools, sizeof(bucket*) * m_PoolCount, "POOLALLOCATOR: Deallocating pool ledger");
 			delete m_UpstreamMemory;
 		}
@@ -51,7 +53,7 @@ namespace ME
 		{
 
 			std::shared_lock<std::shared_mutex> lock(mutex);
-
+			size_t jize = size;
 			size_t continious = 0;
 			bucket* cur = m_nextFree;
 			// To find a contiguous pool of legnth "size"
@@ -124,7 +126,6 @@ namespace ME
 			else
 				count = static_cast<size_t>(bucketcount);
 
-
 			bucket* cur = reinterpret_cast<bucket*>(ptr);
 
 			ME_MEMERROR(belongs(cur) && belongs(cur + count), "Memory out of Bound!!");
@@ -137,7 +138,7 @@ namespace ME
 					m_nextFree = reinterpret_cast<bucket*>(ptr);
 				}
 				else
-					cur->next = cur + 1;
+					new (cur) bucket* (cur + 1);
 
 				cur = cur->next;
 			}
@@ -147,7 +148,7 @@ namespace ME
 		virtual void release() override
 		{
 
-			// Add a way to deallocate the other pools
+			// FIX: Add a way to deallocate the other pools
 
 			m_nextFree = m_PoolHead;
 
@@ -202,8 +203,9 @@ namespace ME
 		// FIX: A way to verify multiple pools
 		bool belongs(bucket* ptr)
 		{
-			long long cond1 = (ptr - m_PoolHead), cond2 = (m_PoolEnd - ptr);
-			if(cond1 >= 0 && cond2 >= 0)
+			char* pos = reinterpret_cast<char*>(ptr);
+			long long cond1 = (pos - (char*)m_PoolHead), cond2 = ((char*)m_PoolEnd - pos);
+			if (cond1 >= 0 && cond2 >= 0 && cond1 % 8 == 0)
 				return true;
 			return false;
 		}

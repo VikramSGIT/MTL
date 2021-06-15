@@ -5,8 +5,9 @@
 #include <shared_mutex>
 #include <iostream>
 
+#ifndef ME_CORE_WARNING
 #define ME_CORE_WARNING(X) std::cout << X << std::endl;
-
+#endif // !ME_CORE_WARNING
 #define ME_MEMMAX (100 * 1024)
 #define ME_MEMERROR(condition, msg)\
 if(!(condition)){\

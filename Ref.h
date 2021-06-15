@@ -61,7 +61,8 @@ namespace ME
 		void reset() 
 		{ 
 			destruct(Ptr);
-			m_UpstreamMemory->deallocate(Ptr, sizeof(T)); 
+			m_UpstreamMemory->deallocate(Ptr, sizeof(T), "REF: Resetting");
+			Ptr = nullptr;
 		}
 		T get() const noexcept { return *Ptr; }
 
