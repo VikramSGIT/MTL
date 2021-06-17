@@ -205,7 +205,7 @@ namespace ME
 		{
 			char* pos = reinterpret_cast<char*>(ptr);
 			long long cond1 = (pos - (char*)m_PoolHead), cond2 = ((char*)m_PoolEnd - pos);
-			if (cond1 >= 0 && cond2 >= 0 && cond1 % 8 == 0)
+			if (cond1 >= 0 && cond2 >= 0 && cond1 % ME_BUCKETSIZE == 0)
 				return true;
 			return false;
 		}

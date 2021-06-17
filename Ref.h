@@ -10,123 +10,88 @@ namespace ME
 	 multiple reference of a pointer.
 	 FIX: Need to make a better implementation for UpstreamMemory initializer.
 	**/
+	template<typename T, typename upstreammemory = alloc_dealloc_UpstreamMemory> class ControlBlock
+	{
+	public:
+		ControlBlock()
+			:Ptr(nullptr), Count(0) {}
+
+		void destruct() 
+		{
+			Ptr->~T();
+			upstreammemory upstream;
+			upstream.deallocate(Ptr, sizeof(T));
+		}
+
+		void inc() { Count++; }
+		void dec() { Count--; }
+
+		T* Ptr;
+		size_t Count;
+	};
 	template<typename T, typename upstreammemory = alloc_dealloc_UpstreamMemory> class Ref
 	{
 	public:
-		Ref()
-			:ptr_count(nullptr), Ptr(nullptr), m_UpstreamMemory(new upstreammemory) {}
-
 		Ref(nullptr_t)
-			:ptr_count(nullptr), Ptr(nullptr), m_UpstreamMemory(new upstreammemory) {}
+			:ControlBlock(nullptr) {}
 
-		template<typename U> Ref(Ref<U>& ref)
-		{
-			Ptr = ref.Ptr;
-			m_UpstreamMemory = ref.m_UpstreamMemory;
-			ptr_count = ref.ptr_count;
-			if (ptr_count != nullptr)
-				*ptr_count += 1;
-		}
+		template<typename U> Ref(const Ref<U>& other)
+			: m_ControlBlock(other.m_ControlBlock) {}
 
-		template<typename U> Ref(Ref<U>&& ref)
+		template<typename U> Ref(Ref<U>&& other)
+			:m_ControlBlock(other.m_ControlBlock) 
 		{
-			Ptr = ref.Ptr;
-			m_UpstreamMemory = ref.m_UpstreamMemory;
-			ptr_count = ref.ptr_count;
-			if (ptr_count != nullptr)
-				*ptr_count += 1;
+			other.m_ControlBlock = nullptr;
 		}
 
 		~Ref()
 		{
-			if (ptr_count != nullptr)
+			if (m_ControlBlock != nullptr)
 			{
-				if (*ptr_count == 1) 
+				if (m_ControlBlock->Count == 1)
 				{
-					destruct(Ptr);
-					m_UpstreamMemory->deallocate(Ptr, sizeof(T), "REF: Deinitializing ref");
-					m_UpstreamMemory->deallocate(ptr_count, sizeof(size_t), "REF: Deinitializing ref count");
-					delete m_UpstreamMemory;
+					upstreammemory upstream;
+					m_ControlBlock->destruct();
+					upstream.deallocate(m_Controlblock, sizeof(ControlBlock))
 				}
-				else 
-				{
-					*ptr_count -= 1;
-				}
+				else
+					m_ControlBlock->dec();
 			}
 		}
-		/**
-		* \brief Clears the handled Object.
-		* Destroys the object and clears the handled Memory.
-		**/
-		void reset() 
-		{ 
-			destruct(Ptr);
-			m_UpstreamMemory->deallocate(Ptr, sizeof(T), "REF: Resetting");
-			Ptr = nullptr;
-		}
-		T get() const noexcept { return *Ptr; }
 
-		template<typename U> void swap(Ref<U>& ref)
+		Ref& operator=(const Ref& other)
 		{
-			T* ptr = Ptr;
-			UpstreamMemory* upstream = m_UpstreamMemory;
-			size_t* count = ptr_count;
-
-			Ptr = ref.Ptr;
-			m_UpstreamMemory = ref.m_UpstreamMemory;
-			ptr_count = ref.ptr_count;
-
-			ref.Ptr = ptr;
-			ref.m_UpstreamMemory = upstream;
-			ref.ptr_count = count;
+			Ref ref;
+			ref.m_ControlBlock = other.m_ControlBlock;
+			ref.m_ControlBlock->inc();
+			return ref;
 		}
 
-		T& operator*() noexcept { return *Ptr; }
-		T* operator->() const noexcept { return Ptr; }
-		template<typename U> bool operator==(const Ref<U>& right) { return Ptr == right.Ptr; }
-		template<typename U> Ref& operator=(const Ref<U>& ref)
+		Ref& operator=(Ref&& other)
 		{
-			Ptr = ref.Ptr;
-			m_UpstreamMemory = ref.m_UpstreamMemory;
-			ptr_count = ref.ptr_count;
-			if (ptr_count != nullptr)
-				*ptr_count += 1;
-
-			return *this;
+			Ref ref;
+			ref.m_ControlBlock = other.m_ControlBlock;
+			other.m_ControlBlock = nullptr;
+			return ref;
 		}
-		template<typename U> Ref& operator=(Ref<U>&& ref)
-		{
-			Ptr = ref.Ptr;
-			m_UpstreamMemory = ref.m_UpstreamMemory;
-			ptr_count = ref.ptr_count;
-			if (ptr_count != nullptr)
-				*ptr_count += 1;
 
-			return *this;
-		}
+		T& operator*() { return *m_ControlBlock->Ptr; }
+		T* operator->() {return m_ControlBlock->Ptr; }
 	private:
-		void destruct(T* ptr)
-		{
-			ptr->~T();
-		}
-
-		size_t* ptr_count;
-		T* Ptr;
-		UpstreamMemory* m_UpstreamMemory;
-		template<typename T, typename ...Args, typename upstreammemory> friend Ref<T> CreateRef(Args&& ...args);
-		friend class Ref;
+		ControlBlock<T, upstreammemory>* m_ControlBlock;
+		friend Ref;
 	};
-	template<typename T, typename ...Args, typename upstreammemory = alloc_dealloc_UpstreamMemory> Ref<T> CreateRef(Args&& ...args) 
+	template<typename T, typename ...Args, typename upstreammemory = alloc_dealloc_UpstreamMemory> Ref<T, upstreammemory>& CreateRef(Args&& ...args) 
 	{
-		Ref<T> res;
+		Ref<T, upstreammemory> ref;
+		upstreammemory upstream;
 
-		res.m_UpstreamMemory = new upstreammemory;
-		res.Ptr = (T*)(res.m_UpstreamMemory->allocate(sizeof(T), "REF: Initializing ref"));
-		new (res.Ptr) T(args...);
+		ref.m_ControlBlock = upstream.allocate(sizeof(ControlBlock));
+		ref.m_ControlBlock->Count = 1;
+		ref.m_ControlBlock->Ptr = upstream.allocate(sizeof(T));
+		new (ref.m_ControlBlock->Ptr) T(args...);
 
-		res.ptr_count = (size_t*)(res.m_UpstreamMemory->allocate(sizeof(size_t), "REF: Initializing ref count"));
-		*res.ptr_count = 1;
-		return res;
+		return ref;
 	}
 }
 #endif // !REF
