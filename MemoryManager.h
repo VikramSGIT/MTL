@@ -37,6 +37,8 @@ namespace ME
         virtual void* allocate(const size_t& size, const char* msg = nullptr) override;
         virtual void* reallocate(void* end_ptr, const size_t& size, const char* msg = nullptr) override;
         virtual void deallocate(void* ptr, const size_t& size, const char* msg = nullptr) override;
+
+        static malloc_stdfree_UpstreamMemory* stref;
     };
     class alloc_dealloc_UpstreamMemory : public UpstreamMemory
     {
@@ -44,18 +46,22 @@ namespace ME
         virtual void* allocate(const size_t& size, const char* msg = nullptr) override;
         virtual void* reallocate(void* end_ptr, const size_t& size, const char* msg = nullptr) override;
         virtual void deallocate(void* ptr, const size_t& size, const char* msg = nullptr) override;
+
+        static alloc_dealloc_UpstreamMemory* stref;
     };
-    class null_Upstream : public UpstreamMemory
+    class null_UpstreamMemory : public UpstreamMemory
     {
     public:
         virtual void* allocate(const size_t&, const char* = nullptr) override { ME_MEMERROR(true, "Triggered null_Upstream"); return nullptr; }
-        virtual void* reallocate(void* end_ptr, const size_t& size, const char* msg = nullptr) override { allocate(0); }
+        virtual void* reallocate(void* end_ptr, const size_t& size, const char* msg = nullptr) override { return allocate(0); }
         virtual void deallocate(void*, const size_t&, const char* = nullptr) override { allocate(0); }
+
+        static null_UpstreamMemory* stref;
     };
 
-    static UpstreamMemory* set_malloc_stdfree_UpstreamMemory() { return new malloc_stdfree_UpstreamMemory; }
-    static UpstreamMemory* set_alloc_dealloc_UpstreamMemory() { return new alloc_dealloc_UpstreamMemory; }
-    static UpstreamMemory* set_null_UpstreamMemory() { return new null_Upstream; }
+    static UpstreamMemory* set_malloc_stdfree_UpstreamMemory() { return malloc_stdfree_UpstreamMemory::stref; }
+    static UpstreamMemory* set_alloc_dealloc_UpstreamMemory() { return alloc_dealloc_UpstreamMemory::stref; }
+    static UpstreamMemory* set_null_UpstreamMemory() { return null_UpstreamMemory::stref; }
 
     class MemoryManager
     {

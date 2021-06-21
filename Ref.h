@@ -19,8 +19,7 @@ namespace ME
 		void destruct() 
 		{
 			Ptr->~T();
-			upstreammemory upstream;
-			upstream.deallocate(Ptr, sizeof(T));
+			upstreammemory::stref->deallocate(Ptr, sizeof(T), "REF: Deallocating Object");
 		}
 
 		void inc() { Count++; }
@@ -32,15 +31,23 @@ namespace ME
 	template<typename T, typename upstreammemory = alloc_dealloc_UpstreamMemory> class Ref
 	{
 	public:
+		Ref()
+			:m_ControlBlock(nullptr) {}
+
 		Ref(nullptr_t)
 			:ControlBlock(nullptr) {}
 
-		template<typename U> Ref(const Ref<U>& other)
-			: m_ControlBlock(other.m_ControlBlock) {}
-
-		template<typename U> Ref(Ref<U>&& other)
-			:m_ControlBlock(other.m_ControlBlock) 
+		template<typename U> Ref(const Ref<U, upstreammemory>& other)
 		{
+			m_ControlBlock = reinterpret_cast<ControlBlock<T, upstreammemory>*>(other.m_ControlBlock);
+			m_ControlBlock->inc();
+		}
+
+		template<typename U> Ref(Ref<U, upstreammemory>&& other)
+		{
+			m_ControlBlock = reinterpret_cast<ControlBlock<T, upstreammemory>*>(other.m_ControlBlock);
+			m_ControlBlock->inc();
+
 			other.m_ControlBlock = nullptr;
 		}
 
@@ -50,16 +57,15 @@ namespace ME
 			{
 				if (m_ControlBlock->Count == 1)
 				{
-					upstreammemory upstream;
 					m_ControlBlock->destruct();
-					upstream.deallocate(m_Controlblock, sizeof(ControlBlock))
+					upstreammemory::stref->deallocate(m_ControlBlock, sizeof(ControlBlock<T, upstreammemory>), "REF: Deallocating Control Block");
 				}
 				else
 					m_ControlBlock->dec();
 			}
 		}
 
-		Ref& operator=(const Ref& other)
+		template<typename U> Ref& operator=(const Ref<U, upstreammemory>& other)
 		{
 			Ref ref;
 			ref.m_ControlBlock = other.m_ControlBlock;
@@ -67,7 +73,7 @@ namespace ME
 			return ref;
 		}
 
-		Ref& operator=(Ref&& other)
+		template<typename U> Ref& operator=(Ref<U, upstreammemory>&& other)
 		{
 			Ref ref;
 			ref.m_ControlBlock = other.m_ControlBlock;
@@ -80,15 +86,14 @@ namespace ME
 	private:
 		ControlBlock<T, upstreammemory>* m_ControlBlock;
 		friend Ref;
+		template<typename T, typename ...Args, typename upstreammemory> friend auto CreateRef(Args&& ...args);
 	};
-	template<typename T, typename ...Args, typename upstreammemory = alloc_dealloc_UpstreamMemory> Ref<T, upstreammemory>& CreateRef(Args&& ...args) 
+	template<typename T, typename ...Args, typename upstreammemory = alloc_dealloc_UpstreamMemory> auto CreateRef(Args&& ...args) 
 	{
 		Ref<T, upstreammemory> ref;
-		upstreammemory upstream;
-
-		ref.m_ControlBlock = upstream.allocate(sizeof(ControlBlock));
+		ref.m_ControlBlock = (ControlBlock<T, upstreammemory>*)(upstreammemory::stref->allocate(sizeof(ControlBlock<T, upstreammemory>), "REF: Allocating Control Block"));
 		ref.m_ControlBlock->Count = 1;
-		ref.m_ControlBlock->Ptr = upstream.allocate(sizeof(T));
+		ref.m_ControlBlock->Ptr = (T*)(upstreammemory::stref->allocate(sizeof(T), "REF: Allocating Object"));
 		new (ref.m_ControlBlock->Ptr) T(args...);
 
 		return ref;

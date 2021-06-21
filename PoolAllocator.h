@@ -24,11 +24,11 @@ namespace ME
 	{
 	public:
 		PoolAllocator()
-			:Size(ME_BUCKETCOUNT), Count(ME_BUCKETCOUNT), MemoryManager(new upstreammemory),
+			:Size(ME_BUCKETCOUNT), Count(ME_BUCKETCOUNT),
 			m_PoolCount(1)
 		{
-			m_PoolHead = (bucket*)m_UpstreamMemory->allocate(sizeof(bucket) * (ME_BUCKETCOUNT + ME_BUCKETGUARD), "POOLALLOCATOR: Pool Initialization");
-			m_Pools = (bucket**)m_UpstreamMemory->allocate(sizeof(bucket**), "POOLALLOCATOR: Ledger Initialization");
+			m_PoolHead = (bucket*)upstreammemory::stref->allocate(sizeof(bucket) * (ME_BUCKETCOUNT + ME_BUCKETGUARD), "POOLALLOCATOR: Pool Initialization");
+			m_Pools = (bucket**)upstreammemory::stref->allocate(sizeof(bucket**), "POOLALLOCATOR: Ledger Initialization");
 			new (m_Pools) bucket* (m_PoolHead);
 
 			m_nextFree = m_PoolHead;
@@ -44,9 +44,8 @@ namespace ME
 		~PoolAllocator() 
 		{
 			for (size_t i = 0; i < m_PoolCount; i++)
-				m_UpstreamMemory->deallocate(*(m_Pools + i), sizeof(bucket) * (ME_BUCKETCOUNT + ME_BUCKETGUARD), "POOLALLOCATOR: Deallocating pool");
-			m_UpstreamMemory->deallocate((bucket*)m_Pools, sizeof(bucket*) * m_PoolCount, "POOLALLOCATOR: Deallocating pool ledger");
-			delete m_UpstreamMemory;
+				upstreammemory::stref->deallocate(*(m_Pools + i), sizeof(bucket) * (ME_BUCKETCOUNT + ME_BUCKETGUARD), "POOLALLOCATOR: Deallocating pool");
+			upstreammemory::stref->deallocate((bucket*)m_Pools, sizeof(bucket*) * m_PoolCount, "POOLALLOCATOR: Deallocating pool ledger");
 		}
 
 		virtual void* allocate(const size_t& size = ME_BUCKETSIZE) override
@@ -177,7 +176,7 @@ namespace ME
 			}
 
 			// Pool Expantion
-			bucket* expand = (bucket*)m_UpstreamMemory->allocate(sizeof(bucket) * (count + ME_BUCKETGUARD), "POOLALLOCATOR: Allocating Extra Pool");
+			bucket* expand = (bucket*)upstreammemory::stref->allocate(sizeof(bucket) * (count + ME_BUCKETGUARD), "POOLALLOCATOR: Allocating Extra Pool");
 			Count += count;
 			Size += count;
 
@@ -189,12 +188,12 @@ namespace ME
 			// Connecting Old to New Pool
 			m_nextFree = expand;
 
-			bucket** temp = (bucket**)m_UpstreamMemory->allocate(sizeof(bucket**) * (m_PoolCount + 1), "POOLALLOCATOR: Expanding Leadger");
+			bucket** temp = (bucket**)upstreammemory::stref->allocate(sizeof(bucket**) * (m_PoolCount + 1), "POOLALLOCATOR: Expanding Leadger");
 			// Copying old expanded pool pointers
 			for(size_t i = 0; i < m_PoolCount; i++)
 				new (temp + i) bucket* (*(m_Pools + i));
 			new (temp + m_PoolCount) bucket* (expand); // Copying the new pool pointer
-			m_UpstreamMemory->deallocate(m_Pools, sizeof(bucket*) * m_PoolCount, "POOLALLOCATOR: Deallocating old leadger");
+			upstreammemory::stref->deallocate(m_Pools, sizeof(bucket*) * m_PoolCount, "POOLALLOCATOR: Deallocating old leadger");
 			m_Pools = temp;
 			m_PoolCount++;
 		}
