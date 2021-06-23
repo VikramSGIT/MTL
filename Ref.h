@@ -31,6 +31,8 @@ namespace ME
 	template<typename T, typename upstreammemory = alloc_dealloc_UpstreamMemory> class Ref
 	{
 	public:
+		ControlBlock<T, upstreammemory>* m_ControlBlock;
+
 		Ref()
 			:m_ControlBlock(nullptr) {}
 
@@ -46,8 +48,6 @@ namespace ME
 		template<typename U> Ref(Ref<U, upstreammemory>&& other)
 		{
 			m_ControlBlock = reinterpret_cast<ControlBlock<T, upstreammemory>*>(other.m_ControlBlock);
-			m_ControlBlock->inc();
-
 			other.m_ControlBlock = nullptr;
 		}
 
@@ -68,23 +68,26 @@ namespace ME
 		template<typename U> Ref& operator=(const Ref<U, upstreammemory>& other)
 		{
 			Ref ref;
-			ref.m_ControlBlock = other.m_ControlBlock;
+			m_ControlBlock = reinterpret_cast<ControlBlock<T, upstreammemory>*>(other.m_ControlBlock);
 			ref.m_ControlBlock->inc();
+
 			return ref;
 		}
 
 		template<typename U> Ref& operator=(Ref<U, upstreammemory>&& other)
 		{
 			Ref ref;
-			ref.m_ControlBlock = other.m_ControlBlock;
+			m_ControlBlock = reinterpret_cast<ControlBlock<T, upstreammemory>*>(other.m_ControlBlock);
 			other.m_ControlBlock = nullptr;
+
 			return ref;
 		}
 
 		T& operator*() { return *m_ControlBlock->Ptr; }
 		T* operator->() {return m_ControlBlock->Ptr; }
+		T const& operator*() const { return *m_ControlBlock->Ptr; }
+		T const* operator->() const { return m_ControlBlock->Ptr; }
 	private:
-		ControlBlock<T, upstreammemory>* m_ControlBlock;
 		friend Ref;
 		template<typename T, typename ...Args, typename upstreammemory> friend auto CreateRef(Args&& ...args);
 	};
