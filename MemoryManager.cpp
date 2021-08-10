@@ -1,6 +1,6 @@
 #include "MemoryManager.h"
 #include "PoolAllocator.h"
-//#include "Core/Logger.h"
+#include "Core/Logger.h"
 
 #include <sstream>
 
@@ -11,7 +11,7 @@ namespace ME
 	alloc_dealloc_UpstreamMemory* alloc_dealloc_UpstreamMemory::stref = nullptr;
 	null_UpstreamMemory* null_UpstreamMemory::stref = nullptr;
 
-	void InitAllocator() 
+	void InitAllocator()
 	{ 
 		malloc_stdfree_UpstreamMemory::stref = new malloc_stdfree_UpstreamMemory;
 		alloc_dealloc_UpstreamMemory::stref = new alloc_dealloc_UpstreamMemory;
