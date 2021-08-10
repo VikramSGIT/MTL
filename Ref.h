@@ -6,7 +6,7 @@
 namespace ME
 {
 	/**
-	 Ref is Reference smart pointer built over Allocator systems of MarsEngine. This class aloow the user to have 
+	 Ref is Reference smart pointer built over Allocator systems of MarsEngine. This class aloow the user to have
 	 multiple reference of a pointer.
 	 FIX: Need to make a better implementation for UpstreamMemory initializer.
 	**/
@@ -33,6 +33,18 @@ namespace ME
 		Ref(nullptr_t)
 			:m_ControlBlock(nullptr) {}
 
+		Ref (const Ref& other)
+		{
+			m_ControlBlock = reinterpret_cast<ControlBlock<T, upstreammemory>*>(other.m_ControlBlock);
+			m_ControlBlock->inc();
+		}
+
+		Ref(Ref&& other)
+		{
+			m_ControlBlock = reinterpret_cast<ControlBlock<T, upstreammemory>*>(other.m_ControlBlock);
+			other.m_ControlBlock = nullptr;
+		}
+
 		template<typename U> Ref(const Ref<U, upstreammemory>& other)
 		{
 			m_ControlBlock = reinterpret_cast<ControlBlock<T, upstreammemory>*>(other.m_ControlBlock);
@@ -42,7 +54,7 @@ namespace ME
 		template<typename U> Ref(Ref<U, upstreammemory>&& other)
 		{
 			m_ControlBlock = reinterpret_cast<ControlBlock<T, upstreammemory>*>(other.m_ControlBlock);
-			m_ControlBlock->inc();
+			other.m_ControlBlock = nullptr;
 		}
 
 		~Ref()
