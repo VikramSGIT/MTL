@@ -1,6 +1,6 @@
 #include "MemoryManager.h"
 #include "PoolAllocator.h"
-//#include "Core/Logger.h"
+#include "Core/Logger.h"
 
 #include <sstream>
 
@@ -33,9 +33,11 @@ namespace ME
 		if (msg == nullptr)
 			msg = "";
 
+#ifdef ME_TRACE_LVL_2
 		std::stringstream ss;
 		ss << msg << " using malloc | AllocatedSize:" << size;
 		ME_CORE_WARNING(ss.str());
+#endif
 
 		return malloc(size);
 	}
@@ -44,9 +46,11 @@ namespace ME
 		if (msg == nullptr)
 			msg = "";
 
+#ifdef ME_TRACE_LVL_2
 		std::stringstream ss;
 		ss << msg << " using realloc | ReallocatedSize: " << size;
 		ME_CORE_WARNING(ss.str());
+#endif
 
 		return ::realloc(end_ptr, size);
 	}
@@ -55,9 +59,11 @@ namespace ME
 		if (msg == nullptr)
 			msg = "";
 
+#ifdef ME_TRACE_LVL_2
 		std::stringstream ss;
 		ss << msg << " using std::free | DeallocatedSize: " << size;
 		ME_CORE_WARNING(ss.str());
+#endif
 
 		std::free(ptr);
 	}
@@ -67,9 +73,12 @@ namespace ME
 			msg = "";
 
 		void* ptr = (void*)alloc<char>(size);
+
+#ifdef ME_TRACE_LVL_2
 		std::stringstream ss;
 		ss << msg << " | AllocatedSize:" << size << " | " << ptr;
 		ME_CORE_WARNING(ss.str());
+#endif
 
 		return ptr;
 	}
@@ -78,9 +87,11 @@ namespace ME
 		if (msg == nullptr)
 			msg = "";
 
+#ifdef ME_TRACE_LVL_2
 		std::stringstream ss;
 		ss << msg << " | ReallocatedSize:" << size;
 		ME_CORE_WARNING(ss.str());
+#endif
 
 		return (void*)realloc<char>((char*)end_ptr, size);
 	}
@@ -89,10 +100,12 @@ namespace ME
 		if (msg == nullptr)
 			msg = "";
 
+#ifdef ME_TRACE_LVL_2
 		std::stringstream ss;
 		ss << msg << " | DeallocatedSize:" << size;
 		dealloc(end_ptr, size);
 		ME_CORE_WARNING(ss.str());
+#endif
 	}
 
 	MemoryManager::MemoryManager(UpstreamMemory* upstreammemory)
