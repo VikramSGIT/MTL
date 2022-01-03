@@ -1,3 +1,5 @@
+#include "MarsHeader.h"
+
 #include "MemoryManager.h"
 #include "PoolAllocator.h"
 #include "Core/Logger.h"

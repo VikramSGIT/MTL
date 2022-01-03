@@ -65,7 +65,10 @@ namespace ME
 			{
 				m_ControlBlock->dec();
 				if (m_ControlBlock->Count == 0)
+				{
+					((T*)m_ControlBlock->Obj)->~T();
 					upstreammemory::stref->deallocate(m_ControlBlock, m_ControlBlock->Size, "REF: Deallocating Control Block");
+				}
 			}
 		}
 
@@ -105,8 +108,11 @@ namespace ME
 
 		void reset()
 		{
-			if(m_ControlBlock->Count == 1)
+			if (m_ControlBlock->Count == 1)
+			{
+				((T*)m_ControlBlock->Obj)->~T();
 				upstreammemory::stref->deallocate(m_ControlBlock, sizeof(ControlBlock<T, upstreammemory>), "REF: Deallocating Control Block");
+			}
 			m_ControlBlock = nullptr;
 		}
 

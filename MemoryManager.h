@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef MEMORYMANAGER
 #define MEMORYMANAGER
 
@@ -5,9 +7,6 @@
 #include <shared_mutex>
 #include <iostream>
 
-#ifndef ME_CORE_WARNING
-#define ME_CORE_WARNING(X) std::cout << X << std::endl;
-#endif // !ME_CORE_WARNING
 #define ME_MEMMAX (100 * 1024)
 #define ME_MEMERROR(condition, msg)\
 if(!(condition)){\
@@ -76,6 +75,7 @@ namespace ME
         virtual void deallocate(void* ptr, const size_t& size) noexcept = 0;
         virtual void release() = 0;
         virtual size_t getFreeMemory() const = 0;
+        virtual size_t getMaxMemory() const = 0;
 
         // The global Allocator
         static MemoryManager* Allocator;
@@ -121,6 +121,8 @@ namespace ME
 
         return (T*)MemoryManager::Allocator->verified_allocate(end_ptr, sizeof(T) * size);
     }
+    static size_t Maxmem() noexcept { return MemoryManager::Allocator->getMaxMemory(); }
+    static size_t LeftMem() noexcept { return MemoryManager::Allocator->getFreeMemory(); }
 }
 
 #endif // !MEMORYMANAGER
