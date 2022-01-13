@@ -81,7 +81,7 @@ namespace ME
         static MemoryManager* Allocator;
     };
 
-    // Faster and global Allocators
+    // Faster global Allocators
     // Params Size: Number of variable to be allocated
     template<typename T>
     constexpr static T* alloc(const size_t& size)
@@ -90,9 +90,8 @@ namespace ME
         ME_MEMERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
 
         if (size)
-        {
             return (T*)MemoryManager::Allocator->allocate(sizeof(T) * size);
-        }
+
         return nullptr;
     }
     template<typename T, typename ...Args>

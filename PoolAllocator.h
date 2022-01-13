@@ -47,7 +47,6 @@ namespace ME
 		{
 
 			std::shared_lock<std::shared_mutex> lock(mutex);
-			size_t jize = size;
 			size_t continious = 0;
 			bucket* cur = m_nextFree;
 			// To find a contiguous pool of legnth "size"

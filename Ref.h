@@ -6,9 +6,9 @@
 namespace ME
 {
 	/**
-	 Ref is Reference smart pointer built over Allocator systems of MarsEngine. This class aloow the user to have
+	 Ref is Reference smart pointer built over the Allocator system of MarsEngine. This class allows the user to have
 	 multiple reference of a pointer.
-	 FIX: Need to make a better implementation for UpstreamMemory initializer.
+	 TODO: Need to make a better implementation for UpstreamMemory initializer.
 	**/
 	template<typename T, typename upstreammemory = alloc_dealloc_UpstreamMemory> class ControlBlock
 	{
@@ -81,7 +81,7 @@ namespace ME
 			return *this;
 		}
 
-		Ref& operator=(Ref&& other)
+		Ref& operator=(Ref&& other) noexcept
 		{
 			m_ControlBlock = other.m_ControlBlock;
 			other.m_ControlBlock = nullptr;
