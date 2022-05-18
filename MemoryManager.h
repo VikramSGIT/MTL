@@ -7,6 +7,8 @@
 #include <shared_mutex>
 #include <iostream>
 
+#define ME_HARD_MEMDEBUG // shall be implemented in future
+
 #define ME_MEMMAX (100 * 1024)
 #define ME_MEMERROR(condition, msg)\
 if(!(condition)){\
@@ -15,6 +17,8 @@ throw std::bad_alloc();\
 }
 #define ME_MEMINIT() ME::InitAllocator()
 #define ME_MEMCLEAR() ME::DeInitAllocator()
+
+#define ALLOC(X) alloc()
 
 namespace ME
 {
@@ -79,7 +83,17 @@ namespace ME
 
         // The global Allocator
         static MemoryManager* Allocator;
+    private:
     };
+
+    /*class MemoryLogger
+    {
+    public:
+        MemoryLogger() = default;
+        virtual ~MemoryLogger() = default;
+
+        std::vector<UUID> alive;
+    };*/
 
     // Faster global Allocators
     // Params Size: Number of variable to be allocated
@@ -95,7 +109,7 @@ namespace ME
         return nullptr;
     }
     template<typename T, typename ...Args>
-    constexpr static T* allocon(const Args&& ...args)
+    constexpr static T* allocon(Args&& ...args)
     {
 
         ME_MEMERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
@@ -104,12 +118,14 @@ namespace ME
         new (ptr) T(args...);
         return ptr;
     }
+
     template<typename T>
     constexpr static void dealloc(T* ptr, const size_t& size)
     {
 
         ME_MEMERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
 
+        ptr->~T();
         MemoryManager::Allocator->deallocate((void*)ptr, size);
     }
     template<typename T>

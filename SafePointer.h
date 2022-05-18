@@ -37,9 +37,9 @@ namespace ME
 		}
 		T& operator[] (const size_t& left)
 		{
-			if (left < m_Count)
-				return *(m_Pointer + left);
-			ME_CORE_ERROR("Index out of bound!!");
+			ME_CORE_CRITICAL(left > m_Count, "Index out of bound!!");
+
+			return *(m_Pointer + left);
 		}
 		T* operator->() { return m_Pointer; }
 		template<typename U> operator U*() { return reinterpret_cast<U*>(m_Pointer); }

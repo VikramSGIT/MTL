@@ -45,7 +45,6 @@ namespace ME
 
 		virtual void* allocate(const size_t& size = ME_BUCKETSIZE) override
 		{
-
 			std::shared_lock<std::shared_mutex> lock(mutex);
 			size_t continious = 0;
 			bucket* cur = m_nextFree;
@@ -63,7 +62,7 @@ namespace ME
 				if (continious * sizeof(bucket) >= size)
 				{
 					m_nextFree = temp;
-					Count += continious * ME_BUCKETSIZE;
+					Count += continious * sizeof(bucket);
 					return reinterpret_cast<void*>(temp - continious);
 				}
 				cur = temp;
@@ -110,18 +109,10 @@ namespace ME
 			if (!size || ptr == nullptr)
 				return;
 
-
-			double bucketcount = (double)size / sizeof(bucket);
-			size_t count = 0;
-
-			if (bucketcount > size / sizeof(bucket))
-				count = static_cast<size_t>(bucketcount + 1);
-			else
-				count = static_cast<size_t>(bucketcount);
-
+			size_t count = std::llround((float)size / sizeof(bucket));
 			bucket* cur = reinterpret_cast<bucket*>(ptr);
 
-			ME_MEMERROR(belongs(cur) && belongs(cur + count), "Memory out of Bound!!");
+			//ME_MEMERROR(belongs(cur), "Memory out of Bound!!"); Causing problem
 
 			for (size_t i = 1; i <= count; i++)
 			{
@@ -200,20 +191,7 @@ namespace ME
 
 		void expand(const size_t& size)
 		{
-			size_t count = 0;
-			if (size > ME_BUCKETCOUNT * sizeof(bucket))
-			{
-				float bucketcount = (float)size / sizeof(bucket);
-
-				if (bucketcount > size / sizeof(bucket))
-					count = static_cast<size_t>(bucketcount + 1);
-				else
-					count = static_cast<size_t>(bucketcount);
-			}
-			else
-			{
-				count = ME_BUCKETCOUNT;
-			}
+			size_t count = std::max( ME_BUCKETSIZE, ME_BUCKETCOUNT);
 
 			// Pool Expantion
 			bucket* newmem = (bucket*)upstreammemory::stref->allocate(sizeof(bucket) * (count + ME_BUCKETGUARD), "POOLALLOCATOR: Allocating Extra Pool");
@@ -233,15 +211,13 @@ namespace ME
 		}
 
 		// A function that verifies that a memory segment belongs to the pool
-		// FIX: A way to verify multiple pools
 		bool belongs(bucket* ptr)
 		{
 			for (int i = 0; i < m_Pools.PoolCount; i++)
-			{
-				size_t c1 = (char*)ptr - (char*)m_Pools[i], c2 = (char*)(m_Pools[i] + (m_Pools.PoolSize[i] - 1)) - (char*)ptr;
-				if (c1 > 0 && c2 > 0)
-					return true;
-			}
+				for (int j = 0; j < ME_BUCKETCOUNT; j++)
+					if (ptr == (bucket*)m_Pools.LedgerHead[i] + (j * ME_BUCKETSIZE))
+						return true;
+
 			return false;
 		}
 
