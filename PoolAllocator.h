@@ -7,6 +7,10 @@
 
 #include "MemoryManager.h"
 
+#ifdef ME_MEM_DEEPDEBUG
+#include <set>
+#endif
+
 namespace ME
 {
 
@@ -23,7 +27,7 @@ namespace ME
 	{
 	public:
 		PoolAllocator()
-			:Size(ME_BUCKETCOUNT * ME_BUCKETSIZE), Count(0)
+			:Size(ME_BUCKETCOUNT * sizeof(bucket)), Count(0)
 		{
 			bucket* PoolHead = (bucket*)upstreammemory::stref->allocate(sizeof(bucket) * (ME_BUCKETCOUNT + ME_BUCKETGUARD), "POOLALLOCATOR: Pool Initialization");
 			*m_Pools.LedgerHead = PoolHead;
@@ -46,6 +50,7 @@ namespace ME
 		virtual void* allocate(const size_t& size = ME_BUCKETSIZE) override
 		{
 			std::shared_lock<std::shared_mutex> lock(mutex);
+
 			size_t continious = 0;
 			bucket* cur = m_nextFree;
 			// To find a contiguous pool of legnth "size"
@@ -63,6 +68,9 @@ namespace ME
 				{
 					m_nextFree = temp;
 					Count += continious * sizeof(bucket);
+#ifdef ME_MEM_HARDDEBUG
+					AllocationDatabase[reinterpret_cast<void*>(temp - continious)].insert(size);
+#endif
 					return reinterpret_cast<void*>(temp - continious);
 				}
 				cur = temp;
@@ -79,13 +87,7 @@ namespace ME
 			std::shared_lock<std::shared_mutex> lock(mutex);
 
 			bucket* cur = reinterpret_cast<bucket*>(end_ptr);
-			double bucketcount = (double)size / sizeof(bucket);
-			size_t count = 0;
-
-			if (bucketcount > size / sizeof(bucket))
-				count = static_cast<size_t>(bucketcount + 1);
-			else
-				count = static_cast<size_t>(bucketcount);
+			size_t count = (size_t)std::ceil((double)size / sizeof(bucket));
 
 			for (size_t i = 0; i <= count; i++)
 			{
@@ -95,7 +97,7 @@ namespace ME
 				if (i == count)
 				{
 					m_nextFree = cur;
-					Count += count * ME_BUCKETSIZE;
+					Count += count * sizeof(bucket);
 					return end_ptr;
 				}
 				cur = cur->next;
@@ -105,14 +107,21 @@ namespace ME
 		virtual void deallocate(void* ptr, const size_t& size) noexcept override
 		{
 			std::shared_lock<std::shared_mutex> lock(mutex);
-
+			
 			if (!size || ptr == nullptr)
 				return;
 
-			size_t count = std::llround((float)size / sizeof(bucket));
+#ifdef ME_MEM_HARDDEBUG
+			auto pt = AllocationDatabase[ptr].find(size);
+			if (pt != AllocationDatabase[ptr].end())
+				AllocationDatabase[ptr].erase(pt);
+			else
+				AllocationDatabase[ptr].insert(-size);
+#endif
+			size_t count = (size_t)std::ceil((double)size / sizeof(bucket));
 			bucket* cur = reinterpret_cast<bucket*>(ptr);
 
-			//ME_MEMERROR(belongs(cur), "Memory out of Bound!!"); Causing problem
+			//ME_MEMERROR(belongs(cur), "Memory out of Bound!!"); Causing issues
 
 			for (size_t i = 1; i <= count; i++)
 			{
@@ -127,7 +136,7 @@ namespace ME
 				cur = cur->next;
 			}
 
-			Count -= count * ME_BUCKETSIZE;
+			Count -= count * sizeof(bucket);
 		}
 		virtual void release() override
 		{
@@ -145,8 +154,9 @@ namespace ME
 			ME_CORE_WARNING("POOLALLOCATOR: Memory Realeased!!");
 		}
 
-		inline size_t getFreeMemory() const noexcept { return Count; }
+		inline size_t getFreeMemory() const noexcept { return Size - Count; }
 		inline size_t getMaxMemory() const noexcept { return Size; }
+		inline size_t getUsedMemory() const noexcept { return Count; }
 	private:
 
 		struct PoolLedger
@@ -181,8 +191,6 @@ namespace ME
 			}
 
 			bucket* operator[](const int& index) { return *(LedgerHead + index); }
-			size_t getBucketCount(const int& index) { return Count[index]; }
-			bucket* getBucketAdd(const int& index) { return LedgerHead[index]; }
 
 			size_t PoolCount;
 			bucket** LedgerHead;
@@ -191,7 +199,8 @@ namespace ME
 
 		void expand(const size_t& size)
 		{
-			size_t count = std::max( ME_BUCKETSIZE, ME_BUCKETCOUNT);
+			size_t count = (size_t)std::ceil((double)size / ME_BUCKETSIZE);
+			count = std::max(ME_BUCKETCOUNT, ME_BUCKETCOUNT);
 
 			// Pool Expantion
 			bucket* newmem = (bucket*)upstreammemory::stref->allocate(sizeof(bucket) * (count + ME_BUCKETGUARD), "POOLALLOCATOR: Allocating Extra Pool");
@@ -207,7 +216,7 @@ namespace ME
 			// Expanding PoolLedger
 			m_Pools.Expand(newmem, count + ME_BUCKETGUARD);
 			
-			Size += count;
+			Size += count * sizeof(bucket);
 		}
 
 		// A function that verifies that a memory segment belongs to the pool
@@ -215,7 +224,7 @@ namespace ME
 		{
 			for (int i = 0; i < m_Pools.PoolCount; i++)
 				for (int j = 0; j < ME_BUCKETCOUNT; j++)
-					if (ptr == (bucket*)m_Pools.LedgerHead[i] + (j * ME_BUCKETSIZE))
+					if (ptr == (bucket*)m_Pools.LedgerHead[i] + (j * sizeof(bucket)))
 						return true;
 
 			return false;
@@ -225,6 +234,10 @@ namespace ME
 		PoolLedger m_Pools; // a ledger for all pools
 		size_t Size, Count;
 		std::shared_mutex mutex;
+#ifdef ME_MEM_DEEPDEBUG
+		std::unordered_map<void*, std::set<long long>> AllocationDatabase;
+		virtual const std::unordered_map<void*, std::set<long long>>& getAllocationRegistry() override { return AllocationDatabase; }
+#endif 
 	};
 }
 #endif // !POOLALLOCATOR
