@@ -1,7 +1,7 @@
-#pragma once
-
 #ifndef MEMORYMANAGER
 #define MEMORYMANAGER
+
+#pragma once
 
 #include "Core/Logger.h"
 
@@ -9,6 +9,9 @@
 #include <shared_mutex>
 #include <iostream>
 
+//#define ME_MEM_DEBUG
+//#define ME_MEM_DEBUG_2
+//#define ME_MEM_DEEPDEBUG
 
 #define ME_MEMMAX (100 * 1024)
 #define ME_MEM_ERROR(condition, msg)\
@@ -35,15 +38,15 @@ namespace ME
     {
     public:
         virtual void* allocate(const size_t& size, std::string msg = "") = 0;
-        virtual void* reallocate(void* end_ptr, const size_t& size, std::string msg = "") = 0;
-        virtual void deallocate(void* ptr, const size_t& size, std::string msg = "") = 0;
+        virtual void* reallocate(void *&ptr, const size_t& size, std::string msg = "") = 0;
+        virtual void deallocate(void* ptr, std::string msg = "") = 0;
     };
     class malloc_stdfree_UpstreamMemory : public UpstreamMemory
     {
     public:
         virtual void* allocate(const size_t& size, std::string msg = "") override;
-        virtual void* reallocate(void* end_ptr, const size_t& size, std::string msg = "") override;
-        virtual void deallocate(void* ptr, const size_t& size, std::string msg = "") override;
+        virtual void* reallocate(void *&ptr, const size_t& size, std::string msg = "") override;
+        virtual void deallocate(void* ptr, std::string msg = "") override;
 
         static malloc_stdfree_UpstreamMemory* stref;
     };
@@ -51,8 +54,8 @@ namespace ME
     {
     public:
         virtual void* allocate(const size_t& size, std::string msg = "") override;
-        virtual void* reallocate(void* end_ptr, const size_t& size, std::string msg = "") override;
-        virtual void deallocate(void* ptr, const size_t& size, std::string msg = "") override;
+        virtual void* reallocate(void *&ptr, const size_t& size, std::string msg = "") override;
+        virtual void deallocate(void* ptr, std::string msg = "") override;
 
         static alloc_dealloc_UpstreamMemory* stref;
     };
@@ -60,8 +63,8 @@ namespace ME
     {
     public:
         virtual void* allocate(const size_t&, std::string msg = "") override { ME_MEM_ERROR(true, "Triggered null_Upstream"); return nullptr; }
-        virtual void* reallocate(void* end_ptr, const size_t& size, std::string msg = "") override { return allocate(0); }
-        virtual void deallocate(void*, const size_t&, std::string msg = "") override { allocate(0); }
+        virtual void* reallocate(void *&end_ptr, const size_t& size, std::string msg = "") override { return allocate(0); }
+        virtual void deallocate(void*, std::string msg = "") override { allocate(0); }
 
         static null_UpstreamMemory* stref;
     };
@@ -79,8 +82,8 @@ namespace ME
         ~MemoryManager() = default;
 
         [[nodiscard]] virtual void* allocate(const size_t& size) = 0;
-        [[nodiscard]] virtual void* verified_allocate(void* end_ptr, const size_t& size) = 0;
-        virtual void deallocate(void* ptr, const size_t& size) noexcept = 0;
+        [[nodiscard]] virtual void* reallocate(void *&ptr, const size_t& size) = 0;
+        virtual void deallocate(void* ptr) noexcept = 0;
         virtual void release() = 0;
         virtual size_t getFreeMemory() const = 0;
         virtual size_t getMaxMemory() const = 0;
@@ -136,7 +139,7 @@ namespace ME
     }
 
     template<typename T>
-    constexpr static void dealloc(T* ptr, const size_t& size)
+    constexpr static void dealloc(T* ptr)
     {
 
         ME_MEM_ERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
@@ -145,35 +148,22 @@ namespace ME
         ME_CORE_WARNING("Using dealloc | Deallocated Size: {} | {}", size, (void*)ptr);
 #endif
         ptr->~T();
-        MemoryManager::Allocator->deallocate((void*)ptr, size);
+        MemoryManager::Allocator->deallocate((void*)ptr);
     }
     template<typename T>
-    constexpr static T* realloc(T* end_ptr, const size_t& size)
+    constexpr static T* realloc(T *&ptr, const size_t& size)
     {
 
         ME_MEM_ERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
 
-        T* ptr = (T*)MemoryManager::Allocator->verified_allocate(end_ptr, sizeof(T) * size);
+        MemoryManager::Allocator->reallocate((void*&)ptr, size);
 #ifdef ME_MEM_DEBUG_2
         ME_CORE_WARNING("using realloc | Reallocated Size: {} | {}", size, (void*)ptr);
 #endif
-        return ptr;
+        return (T*)ptr;
     }
     static size_t Maxmem() noexcept { return MemoryManager::Allocator->getMaxMemory(); }
     static size_t LeftMem() noexcept { return MemoryManager::Allocator->getFreeMemory(); }
-#ifdef ME_MEM_DEEPDEBUG
-#define dealloc(X, Y) \
-    dealloc(X, Y);\
-    {\
-        auto reg = ME::MemoryManager::Allocator->getAllocationRegistry();\
-        if(reg[(void*)X].size())\
-        {\
-            auto pt = reg[(void*)X].find(Y);\
-            if (pt == reg[(void*)X].end())\
-                throw;\
-        }\
-    }
-#endif
 }
 
 #endif // !MEMORYMANAGER

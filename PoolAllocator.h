@@ -3,7 +3,9 @@
 
 #define ME_BUCKETSIZE 8 // make sure it to be powers of 2
 #define ME_BUCKETCOUNT 1000
-#define ME_BUCKETGUARD 1 // used to identify the end of bucket pool
+#define ME_POOLGUARDCOUNT 1 // used to identify the end of pool
+#define ME_GUARDBUCKET -1011.01001011
+#define ME_POOLGUARD -1.01101110
 
 #include "MemoryManager.h"
 
@@ -13,12 +15,11 @@
 
 namespace ME
 {
-
-	template<size_t bytes>
-	union Bucket
+	template<size_t bytes> union Bucket
 	{
 		char item[bytes];
 		Bucket* next;
+		double GUARD;
 	};
 	typedef Bucket<ME_BUCKETSIZE> bucket;
 
@@ -27,24 +28,27 @@ namespace ME
 	{
 	public:
 		PoolAllocator()
-			:Size(ME_BUCKETCOUNT * sizeof(bucket)), Count(0)
+			:Size(ME_BUCKETCOUNT * sizeof(bucket)), Count(0), PoolCount(1)
 		{
-			bucket* PoolHead = (bucket*)upstreammemory::stref->allocate(sizeof(bucket) * (ME_BUCKETCOUNT + ME_BUCKETGUARD), "POOLALLOCATOR: Pool Initialization");
-			*m_Pools.LedgerHead = PoolHead;
-			*m_Pools.PoolSize = ME_BUCKETCOUNT + ME_BUCKETGUARD;
+			bucket* cur = (bucket*)upstreammemory::stref->allocate(sizeof(bucket) * (ME_BUCKETCOUNT + ME_POOLGUARDCOUNT), "POOLALLOCATOR: Pool Initialization");
+			m_Pools = (Pool*)upstreammemory::stref->allocate(sizeof(Pool), "POOLALLOCATOR: Initializating pool ledger");
+			m_Pools->Head = cur;
+			m_Pools->Size = ME_BUCKETCOUNT;
+			(cur + ME_BUCKETCOUNT)->GUARD = ME_POOLGUARD;
+			m_nextFree = cur;
 
-			m_nextFree = PoolHead;
-
-			for (size_t i = 0; i < ME_BUCKETCOUNT; i++)
-				new (PoolHead + i) bucket* (PoolHead + i + 1);
-
-			new (PoolHead + ME_BUCKETCOUNT)  bucket*(nullptr);
+			while (cur->GUARD != ME_POOLGUARD)
+			{
+				cur->next = cur + 1;
+				cur++;
+			}
 		}
 
 		~PoolAllocator() 
 		{
-			for (size_t i = 0; i < m_Pools.PoolCount; i++)
-				upstreammemory::stref->deallocate(m_Pools[i], sizeof(bucket) * m_Pools.PoolSize[i], "POOLALLOCATOR: Deallocating Pool");
+			for (size_t i = 0; i < PoolCount; i++)
+				upstreammemory::stref->deallocate(m_Pools[i].Head, "POOLALLOCATOR: Deallocating Pool");
+			upstreammemory::stref->deallocate(m_Pools, "POOLALLOCATOR: Deallocating pool ledger");
 		}
 
 		virtual void* allocate(const size_t& size = ME_BUCKETSIZE) override
@@ -54,26 +58,26 @@ namespace ME
 			size_t continious = 0;
 			bucket* cur = m_nextFree;
 			// To find a contiguous pool of legnth "size"
-			while (cur != nullptr)
+			while (cur->GUARD != ME_POOLGUARD)
 			{
-				bucket* temp = nullptr;
-				if(cur->next != nullptr)
-					temp = cur->next; // needed a fix here
-
-				if (temp - cur == 1)
+				if (cur->next - cur == 1)
 					continious++;
 				else
 					continious = 0;
-				if (continious * sizeof(bucket) >= size)
+
+
+				if (continious * sizeof(bucket) >= (size + ME_BUCKETSIZE)) //extrabucket for guard
 				{
-					m_nextFree = temp;
-					Count += continious * sizeof(bucket);
-#ifdef ME_MEM_HARDDEBUG
-					AllocationDatabase[reinterpret_cast<void*>(temp - continious)].insert(size);
+#ifdef ME_MEM_DEEPDEBUG
+					AllocationDatabase[reinterpret_cast<void*>(cur - (continious - 1 ))].insert(continious - 1);
 #endif
-					return reinterpret_cast<void*>(temp - continious);
+					m_nextFree = cur->next;
+					cur->GUARD = ME_GUARDBUCKET;
+
+					Count += continious * sizeof(bucket);
+					return reinterpret_cast<void*>(cur - (continious - 1));
 				}
-				cur = temp;
+				cur = cur->next;
 			}
 
 			expand(size);
@@ -81,75 +85,90 @@ namespace ME
 			// using recursion to allocate with newly allocated pool.
 			return allocate(size);
 		}
-		virtual void* verified_allocate(void* end_ptr, const size_t& size) override
+		virtual void* reallocate(void *&ptr, const size_t& size) override
 		{
 
 			std::shared_lock<std::shared_mutex> lock(mutex);
 
-			bucket* cur = reinterpret_cast<bucket*>(end_ptr);
-			size_t count = (size_t)std::ceil((double)size / sizeof(bucket));
-
-			for (size_t i = 0; i <= count; i++)
+			size_t continious = 0, filledbuckets = getBucketCount((bucket*)ptr);
+			bucket* cur = (bucket*)ptr + filledbuckets + 1;
+			if (cur == m_nextFree)
 			{
-				if (cur->next - cur != 1)
-					break;
-
-				if (i == count)
+				while (cur->GUARD != ME_POOLGUARD)
 				{
-					m_nextFree = cur;
-					Count += count * sizeof(bucket);
-					return end_ptr;
+					if (cur->next - cur != 1)
+						break;
+					else
+						continious++;
+
+					if (continious * sizeof(bucket) >= size)
+					{
+						m_nextFree = cur->next;
+						memcpy((bucket*)ptr + filledbuckets, "0", 1); // removes guardbucket, removing deallocation confusions
+						cur->GUARD = ME_GUARDBUCKET;
+						Count += continious * sizeof(bucket);
+#ifdef ME_MEM_DEEPDEBUG
+						auto pt = AllocationDatabase[ptr].find(filledbuckets);
+						AllocationDatabase[ptr].erase(pt);
+						AllocationDatabase[ptr].insert(filledbuckets + continious);
+#endif
+
+						return ptr;
+					}
+					cur = cur->next;
 				}
-				cur = cur->next;
 			}
-			return nullptr;
+
+			size_t total = filledbuckets * sizeof(bucket) + size;
+			bucket* newmem = (bucket*)allocate(total);
+			memcpy(newmem, ptr, filledbuckets * sizeof(bucket));
+			deallocate(ptr);
+			ptr = newmem;
+			return ptr;
 		}
-		virtual void deallocate(void* ptr, const size_t& size) noexcept override
+		virtual void deallocate(void* ptr) noexcept override
 		{
 			std::shared_lock<std::shared_mutex> lock(mutex);
 			
-			if (!size || ptr == nullptr)
+			if (ptr == nullptr)
 				return;
 
-#ifdef ME_MEM_HARDDEBUG
-			auto pt = AllocationDatabase[ptr].find(size);
+			size_t size = 1;
+			bucket* cur = reinterpret_cast<bucket*>(ptr);
+
+			while (cur->GUARD != ME_GUARDBUCKET)
+			{
+				cur->next = (cur + 1);
+				cur = cur->next;
+				size++;
+			}
+			cur->next = m_nextFree;
+			m_nextFree = (bucket*)ptr;
+
+#ifdef ME_MEM_DEEPDEBUG
+			auto pt = AllocationDatabase[ptr].find(size - 1);
 			if (pt != AllocationDatabase[ptr].end())
 				AllocationDatabase[ptr].erase(pt);
 			else
-				AllocationDatabase[ptr].insert(-size);
+				AllocationDatabase[ptr].insert(1 - size);
 #endif
-			size_t count = (size_t)std::ceil((double)size / sizeof(bucket));
-			bucket* cur = reinterpret_cast<bucket*>(ptr);
 
 			//ME_MEMERROR(belongs(cur), "Memory out of Bound!!"); Causing issues
 
-			for (size_t i = 1; i <= count; i++)
-			{
-				if (i == count)
-				{
-					cur->next = m_nextFree;
-					m_nextFree = reinterpret_cast<bucket*>(ptr);
-				}
-				else
-					new (cur) bucket* (cur + 1);
-
-				cur = cur->next;
-			}
-
-			Count -= count * sizeof(bucket);
+			Count -= size * sizeof(bucket);
 		}
 		virtual void release() override
 		{
-			for (size_t i = 1; i < m_Pools.PoolCount; i++)
+			for (size_t i = 1; i < PoolCount; i++)
 			{
-				for (size_t j = 1; j < m_Pools.PoolSize[i - 1]; j++)
-					m_Pools[i - 1]->next = m_Pools[i - 1] + j;
+				for (size_t j = 1; j < m_Pools[i - 1].Size; j++)
+					m_Pools[i - 1].Head->next = m_Pools[i - 1].Head + j;
 
 				// Connecting pools
-				(m_Pools[i - 1] + m_Pools.PoolSize[i - 1])->next = m_Pools[i];
+				(m_Pools[i - 1].Head + m_Pools[i-1].Size)->next = m_Pools[i].Head;
 			}
 			// Setting last Pool's PoolGuard to nullptr
-			(m_Pools[m_Pools.PoolCount - 1] + m_Pools.PoolSize[m_Pools.PoolCount - 1])->next = nullptr;
+			(m_Pools[PoolCount - 1].Head + m_Pools[PoolCount - 1].Size)->next = nullptr;
 
 			ME_CORE_WARNING("POOLALLOCATOR: Memory Realeased!!");
 		}
@@ -158,44 +177,36 @@ namespace ME
 		inline size_t getMaxMemory() const noexcept { return Size; }
 		inline size_t getUsedMemory() const noexcept { return Count; }
 	private:
-
-		struct PoolLedger
+		struct Pool
 		{
-			PoolLedger()
-				:PoolCount(1)
-			{
-				LedgerHead = (bucket**)upstreammemory::stref->allocate(sizeof(bucket*), "POOLALLOCATOR: Initialising PoolLedger");
-				PoolSize = (size_t*)upstreammemory::stref->allocate(sizeof(size_t), "POOLALLOCATOR: Initialising PoolLedger Count");
-			}
-			~PoolLedger()
-			{
-				upstreammemory::stref->deallocate(LedgerHead, sizeof(bucket) * PoolCount, "POOLALLOCATOR: Deallocating Ledger");
-				upstreammemory::stref->deallocate(PoolSize, sizeof(size_t) * PoolCount, "POOLALLOCATOR: Deallocating Count");
-			}
-
-			void Expand(bucket* poolhead, const size_t poolsize)
-			{
-				bucket** pool = (bucket**)upstreammemory::stref->allocate(sizeof(bucket*) * (PoolCount + 1), "POOLALLOCATOR: Expanding Ledger");
-				memcpy(pool, LedgerHead, sizeof(bucket) * PoolCount);
-				upstreammemory::stref->deallocate(LedgerHead, sizeof(bucket) * PoolCount, "POOLALLOCATOR: Deallocating old Ledger");
-				*(pool + PoolCount) = poolhead;
-				LedgerHead = pool;
-
-				size_t* countexpand = (size_t*)upstreammemory::stref->allocate(sizeof(size_t) * (PoolCount + 1), "POOLALLOCATOR: Expanding Ledger Count");
-				memcpy(countexpand, PoolSize, sizeof(size_t) * PoolCount);
-				upstreammemory::stref->deallocate(PoolSize, sizeof(size_t) * PoolCount, "POOLALLOCATOR: Deallocating old Count");
-				*(countexpand + PoolCount) = poolsize;
-				PoolSize = countexpand;
-
-				PoolCount++;
-			}
-
-			bucket* operator[](const int& index) { return *(LedgerHead + index); }
-
-			size_t PoolCount;
-			bucket** LedgerHead;
-			size_t* PoolSize;
+			bucket* Head;
+			size_t Size;
 		};
+
+		size_t getBucketCount(bucket* ptr)
+		{
+			size_t count = 0;
+
+			while (ptr->GUARD != ME_GUARDBUCKET)
+			{
+				ptr = ptr + 1;
+				count++;
+			}
+			return count;
+		}
+
+		inline bucket* BucketCorrection(const void* ptr)
+		{
+			for (size_t i = 0; i < PoolCount; i++)
+			{
+				if (m_Pools[i].Head <= ptr && (m_Pools[i].Head + m_Pools[i].Size) >= ptr)
+				{
+					size_t offset = (((char*)ptr - (char*)m_Pools[i].Head) % ME_BUCKETSIZE);
+					return (bucket*)((char*)ptr - offset);
+				}
+			}
+			return nullptr;
+		}
 
 		void expand(const size_t& size)
 		{
@@ -203,19 +214,30 @@ namespace ME
 			count = std::max(ME_BUCKETCOUNT, ME_BUCKETCOUNT);
 
 			// Pool Expantion
-			bucket* newmem = (bucket*)upstreammemory::stref->allocate(sizeof(bucket) * (count + ME_BUCKETGUARD), "POOLALLOCATOR: Allocating Extra Pool");
-
+			bucket* poolhead = (bucket*)upstreammemory::stref->allocate(sizeof(bucket) * (count + ME_POOLGUARDCOUNT), "POOLALLOCATOR: Allocating Extra Pool");
+			bucket* cur = poolhead;
 			// Pool Initialization
-			for (size_t i = 0; i < count; i++)
-				new (newmem + i) bucket* (newmem + i + 1);
-			new (newmem + count) bucket* (m_nextFree);
+			(cur + count)->next = m_nextFree;
+			(cur + count + 1)->GUARD = ME_POOLGUARD;
+			
+			while (cur->GUARD != ME_POOLGUARD)
+			{
+				cur->next = cur + 1;
+				cur++;
+			}
 
 			// Connecting Old to New Pool
-			m_nextFree = newmem;
+			m_nextFree = poolhead;
 
 			// Expanding PoolLedger
-			m_Pools.Expand(newmem, count + ME_BUCKETGUARD);
-			
+			Pool *newpool = (Pool*)upstreammemory::stref->allocate(sizeof(Pool) * (PoolCount + 1), "POOLALLOCATOR: Allocating new ledger");
+			memcpy(newpool, m_Pools, sizeof(Pool) * PoolCount);
+			(newpool + PoolCount)->Head = poolhead;
+			(newpool + PoolCount)->Size = (count + ME_POOLGUARDCOUNT);
+			upstreammemory::stref->deallocate(m_Pools, "POOLALLOCATOR: Deallocating old ledger");
+			PoolCount++;
+
+			m_Pools = newpool;
 			Size += count * sizeof(bucket);
 		}
 
@@ -231,8 +253,8 @@ namespace ME
 		}
 
 		bucket * m_nextFree;
-		PoolLedger m_Pools; // a ledger for all pools
-		size_t Size, Count;
+		Pool* m_Pools; // a ledger for all pools
+		size_t Size, Count, PoolCount;
 		std::shared_mutex mutex;
 #ifdef ME_MEM_DEEPDEBUG
 		std::unordered_map<void*, std::set<long long>> AllocationDatabase;
