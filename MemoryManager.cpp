@@ -69,37 +69,42 @@ namespace ME
 	{
 		void* ptr = malloc(size);
 #ifdef ME_MEM_DEBUG
-		ME_CORE_WARNING(msg + " using malloc | Allocated Size: {} | {} ", size, ptr);
+		ME_CORE_FILTER
+			ME_CORE_WARNING(msg + " using malloc | Allocated Size: {} | {} ", size, ptr);
 #endif
 		return ptr;
 	}
 	void* malloc_stdfree_UpstreamMemory::reallocate(void*& ptr, const size_t& size, std::string msg)
 	{
 #ifdef ME_MEM_DEBUG
-		ME_CORE_WARNING(msg + " using realloc | Reallocated Size: {} ", size);
+		ME_CORE_FILTER
+			ME_CORE_WARNING(msg + " using realloc | Reallocated Size: {} ", size);
 #endif
 		return std::realloc(ptr, size);
 	}
 	void malloc_stdfree_UpstreamMemory::deallocate(void* ptr, std::string msg) 
 	{
 #ifdef ME_MEM_DEBUG
-		ME_CORE_WARNING(msg + " using std::free | {} ", ptr);
+		ME_CORE_FILTER
+			ME_CORE_WARNING(msg + " using std::free | {} ", ptr);
 #endif
 		std::free(ptr);
 	}
 	void* alloc_dealloc_UpstreamMemory::allocate(const size_t& size, std::string msg) 
 	{
-		void* ptr = (void*)allocarr<char>(size);
+		void* ptr = (void*)alloc<char>(size);
 
 #ifdef ME_MEM_DEBUG
-		ME_CORE_WARNING(msg + " | Allocated Size: {} | {} ", size, ptr);
+		ME_CORE_FILTER
+			ME_CORE_WARNING(msg + " | Allocated Size: {} | {} ", size, ptr);
 #endif
 		return ptr;
 	}
 	void* alloc_dealloc_UpstreamMemory::reallocate(void *&ptr, const size_t& size, std::string msg)
 	{
 #ifdef ME_MEM_DEBUG
-		ME_CORE_WARNING(msg + " | Reallocated Size: {} ", size);
+		ME_CORE_FILTER
+			ME_CORE_WARNING(msg + " | Reallocated Size: {} ", size);
 #endif
 		realloc<char>((char*&)ptr, size);
 		return ptr;
@@ -107,7 +112,8 @@ namespace ME
 	void alloc_dealloc_UpstreamMemory::deallocate(void* ptr, std::string msg) 
 	{
 #ifdef ME_MEM_DEBUG
-		ME_CORE_WARNING(msg + " | {} ", ptr);
+		ME_CORE_FILTER
+			ME_CORE_WARNING(msg + " | {} ", ptr);
 #endif
 		dealloc(ptr);
 	}

@@ -5,19 +5,15 @@
 
 #include "Core/Logger.h"
 
-#include <memory>
-#include <shared_mutex>
-#include <iostream>
-
 //#define ME_MEM_DEBUG
 //#define ME_MEM_DEBUG_2
 //#define ME_MEM_DEEPDEBUG
 
 #define ME_MEMMAX (100 * 1024)
-#define ME_MEM_ERROR(condition, msg)\
+#define ME_MEM_ERROR(condition, ...)\
 if(!(condition)){\
-std::cout << msg << std::endl;\
-throw std::bad_alloc();\
+spdlog::critical(__VA_ARGS__);\
+throw "Memory Corrupted!!";\
 }
 #define ME_MEM_INIT() ME::InitAllocator()
 #define ME_MEM_CLEAR() ME::DeInitAllocator()
@@ -81,6 +77,8 @@ namespace ME
         MemoryManager(UpstreamMemory* upstreammemory = set_alloc_dealloc_UpstreamMemory());
         ~MemoryManager() = default;
 
+        static int CheckHeapIntegrity() { return _CrtCheckMemory(); }
+
         [[nodiscard]] virtual void* allocate(const size_t& size) = 0;
         [[nodiscard]] virtual void* reallocate(void *&ptr, const size_t& size) = 0;
         virtual void deallocate(void* ptr) noexcept = 0;
@@ -98,31 +96,16 @@ namespace ME
     // Faster global Allocators
     // Params Size: Number of variable to be allocated
     template<typename T>
-    constexpr static T* alloc()
+    constexpr static T* alloc(const size_t& count = 1)
     {
 
         ME_MEM_ERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
 
-        T* ptr = (T*)MemoryManager::Allocator->allocate(sizeof(T));
+        T* ptr = (T*)MemoryManager::Allocator->allocate(sizeof(T) * count);
 #ifdef ME_MEM_DEBUG_2
         ME_CORE_WARNING("Using alloc | Allocated Size: {} | {}", sizeof(T), (void*)ptr);
 #endif
         return ptr;
-    }
-    template<typename T>
-    constexpr static T* allocarr(const size_t& element_count)
-    {
-
-        ME_MEM_ERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
-
-        T* ptr = (T*)MemoryManager::Allocator->allocate(element_count * sizeof(T));
-#ifdef ME_MEM_DEBUG_2
-        ME_CORE_WARNING("Using alloc | Allocated Size: {} | {}", element_count * sizeof(T), (void*)ptr);
-#endif
-        if (element_count)
-            return ptr;
-
-        return nullptr;
     }
     template<typename T, typename ...Args>
     constexpr static T* allocon(Args&& ...args)
@@ -145,7 +128,7 @@ namespace ME
         ME_MEM_ERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
 
 #ifdef ME_MEM_DEBUG_2
-        ME_CORE_WARNING("Using dealloc | Deallocated Size: {} | {}", size, (void*)ptr);
+        ME_CORE_WARNING("Using dealloc | {}", (void*)ptr);
 #endif
         ptr->~T();
         MemoryManager::Allocator->deallocate((void*)ptr);

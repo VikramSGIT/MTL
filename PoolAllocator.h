@@ -9,6 +9,8 @@
 
 #include "MemoryManager.h"
 
+#include <mutex>
+
 #ifdef ME_MEM_DEEPDEBUG
 #include <set>
 #endif
@@ -28,7 +30,7 @@ namespace ME
 	{
 	public:
 		PoolAllocator()
-			:Size(ME_BUCKETCOUNT * sizeof(bucket)), Count(0), PoolCount(1)
+			:Size(ME_BUCKETCOUNT * sizeof(bucket)), Count(0), PoolCount(1), expanded(false)
 		{
 			bucket* cur = (bucket*)upstreammemory::stref->allocate(sizeof(bucket) * (ME_BUCKETCOUNT + ME_POOLGUARDCOUNT), "POOLALLOCATOR: Pool Initialization");
 			m_Pools = (Pool*)upstreammemory::stref->allocate(sizeof(Pool), "POOLALLOCATOR: Initializating pool ledger");
@@ -53,18 +55,14 @@ namespace ME
 
 		virtual void* allocate(const size_t& size = ME_BUCKETSIZE) override
 		{
-			std::shared_lock<std::shared_mutex> lock(mutex);
-
 			size_t continious = 0;
 			bucket* cur = m_nextFree;
 			// To find a contiguous pool of legnth "size"
 			while (cur->GUARD != ME_POOLGUARD)
 			{
-				if (cur->next - cur == 1)
-					continious++;
-				else
+				continious++;
+				if (cur->next - cur != 1)
 					continious = 0;
-
 
 				if (continious * sizeof(bucket) >= (size + ME_BUCKETSIZE)) //extrabucket for guard
 				{
@@ -75,21 +73,19 @@ namespace ME
 					cur->GUARD = ME_GUARDBUCKET;
 
 					Count += continious * sizeof(bucket);
+					expanded = false;
 					return reinterpret_cast<void*>(cur - (continious - 1));
 				}
 				cur = cur->next;
 			}
 
-			expand(size);
-
+			expand(size + ME_BUCKETSIZE);
+			expanded = true;
 			// using recursion to allocate with newly allocated pool.
 			return allocate(size);
 		}
 		virtual void* reallocate(void *&ptr, const size_t& size) override
 		{
-
-			std::shared_lock<std::shared_mutex> lock(mutex);
-
 			size_t continious = 0, filledbuckets = getBucketCount((bucket*)ptr);
 			bucket* cur = (bucket*)ptr + filledbuckets + 1;
 			if (cur == m_nextFree)
@@ -128,15 +124,13 @@ namespace ME
 		}
 		virtual void deallocate(void* ptr) noexcept override
 		{
-			std::shared_lock<std::shared_mutex> lock(mutex);
-			
 			if (ptr == nullptr)
 				return;
 
 			size_t size = 1;
 			bucket* cur = reinterpret_cast<bucket*>(ptr);
 
-			while (cur->GUARD != ME_GUARDBUCKET)
+			while (cur->GUARD != ME_GUARDBUCKET && cur->GUARD != ME_POOLGUARD)
 			{
 				cur->next = (cur + 1);
 				cur = cur->next;
@@ -208,19 +202,20 @@ namespace ME
 			return nullptr;
 		}
 
-		void expand(const size_t& size)
+		void expand(const size_t& size,const bool& init = true)
 		{
-			size_t count = (size_t)std::ceil((double)size / ME_BUCKETSIZE);
-			count = std::max(ME_BUCKETCOUNT, ME_BUCKETCOUNT);
+			size_t count = (size_t)std::ceil((double)size / sizeof(bucket)) + 1, bucketcount = ME_BUCKETCOUNT;
+			ME_MEM_ERROR(!expanded, "Infite loop allocation detected!! {}", count);
+			count = std::max(count, bucketcount);
 
 			// Pool Expantion
 			bucket* poolhead = (bucket*)upstreammemory::stref->allocate(sizeof(bucket) * (count + ME_POOLGUARDCOUNT), "POOLALLOCATOR: Allocating Extra Pool");
 			bucket* cur = poolhead;
 			// Pool Initialization
-			(cur + count)->next = m_nextFree;
-			(cur + count + 1)->GUARD = ME_POOLGUARD;
-			
-			while (cur->GUARD != ME_POOLGUARD)
+			(cur + count)->GUARD = ME_POOLGUARD;
+			(cur + count - 1)->next = m_nextFree;
+
+			while (cur->next != m_nextFree)
 			{
 				cur->next = cur + 1;
 				cur++;
@@ -255,7 +250,7 @@ namespace ME
 		bucket * m_nextFree;
 		Pool* m_Pools; // a ledger for all pools
 		size_t Size, Count, PoolCount;
-		std::shared_mutex mutex;
+		bool expanded;
 #ifdef ME_MEM_DEEPDEBUG
 		std::unordered_map<void*, std::set<long long>> AllocationDatabase;
 		virtual const std::unordered_map<void*, std::set<long long>>& getAllocationRegistry() override { return AllocationDatabase; }

@@ -1,5 +1,7 @@
-#ifndef SCOPE
-#define SCOPE
+#ifndef ME_SCOPE
+#define ME_SCOPE
+
+#pragma once
 
 #include "MemoryManager.h"
 namespace ME
@@ -9,56 +11,43 @@ namespace ME
 	{
 	public:
 		Scope()
-			:Ptr(nullptr), m_UpstreamMemory(new upstreammemory) {}
+			:Ptr(nullptr) {}
 		
 		Scope(nullptr_t)
-			:Ptr(nullptr), m_UpstreamMemory(new upstreammemory) {}
+			:Ptr(nullptr) {}
 
 		~Scope()
 		{
-			destruct(Ptr);
-			m_UpstreamMemory->deallocate(Ptr, sizeof(T), "SCOPE: Deallocating scope");
-			delete m_UpstreamMemory;
+			if(Ptr != nullptr)
+				(deleter*)Ptr->~deleter();
+			upstreammemory::stref->deallocate(Ptr, "SCOPE: Deallocating scope");
 		}
 
-		T* get() const noexcept
-		{
-			return Ptr;
-		}
-
+		T* get() noexcept { return Ptr; }
 		T& operator*() { return *Ptr; }
-		T* operator->() const noexcept { return Ptr; }
-
+		T* operator->() noexcept { return Ptr; }
+		const T* get() const noexcept { return Ptr; }
+		const T& operator*() const { return *Ptr; }
+		const T* operator->() const noexcept { return Ptr; }
+		Scope& operator=(const Scope&) = delete;
 		Scope(const Scope&) = delete;
-		T& operator=(const Scope&) = delete;
 	private:
 		T* Ptr;
-		UpstreamMemory* m_UpstreamMemory;
-
-		template<typename ...Args>
-		void construct(T* ptr, Args ...args)
+		template<typename U> Scope(const Scope<U, upstreammemory>& other)
 		{
-			new (ptr) T(args...);
+			if (Ptr != nullptr)
+				Ptr->~T();
+			upstreammemory::stref->deallocate(Ptr, "SCOPE: Replacing old pointer");
+			Ptr = other.Ptr;
+			other.Ptr = nullptr;
 		}
-
-		void destruct(T* ptr)
-		{
-			ptr->~T();
-		}
-		template<typename ...Args>
-		Scope(Args ...args)
-			:m_UpstreamMemory(new upstreammemory)
-		{
-			T* ptr = static_cast<T*>(m_UpstreamMemory->allocate(sizeof(T), "SCOPE: Initializing scope"));
-			Ptr = ptr;
-			construct(Ptr, args...);
-		}
-		template<typename T, typename ...Args, typename upstreammemory> friend Scope<T, upstreammemory> CreateScope(Args ...args);
+		template<typename U, typename ...Args, typename memory> Scope<U, memory> friend CreateScope(Args ...args);
 	};
-	template<typename T, typename ...Args, typename upstreammemory = alloc_dealloc_UpstreamMemory>
-	Scope<T, upstreammemory> CreateScope(Args ...args) 
+	template<typename U, typename ...Args, typename upstreammemory = alloc_dealloc_UpstreamMemory> Scope<U, upstreammemory> CreateScope(Args ...args)
 	{
-		return Scope<T, upstreammemory>(args...);
+		U* Ptr = (U*)(upstreammemory::stref->allocate(sizeof(U), "SCOPE: Initializing scope"));
+		new (Ptr) U(args...);
+		return Scope<U, upstreammemory>(Ptr);
 	}
 }
 #endif // !SCOPE
