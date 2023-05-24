@@ -1,27 +1,37 @@
-#ifndef MEMORYMANAGER
-#define MEMORYMANAGER
-
 #pragma once
 
-#include "Core/Logger.h"
-
-//#define ME_MEM_DEBUG
-//#define ME_MEM_DEBUG_2
+#define ME_MEM_DEBUG
 //#define ME_MEM_DEEPDEBUG
+//#define ME_ENABLE_OVERFLOW_CHECK
 
 #define ME_MEMMAX (100 * 1024)
+
+#ifdef ME_ISOLATE
+#include <iostream>
+
+#define ME_MEM_ERROR(condition, ...)\
+if(!(condition)){\
+std::cerr << __VA_ARGS__ << std::endl;\
+throw "Memory Corrupted!!";\
+}
+#else
+#include "Core/Logger.h"
+
 #define ME_MEM_ERROR(condition, ...)\
 if(!(condition)){\
 spdlog::critical(__VA_ARGS__);\
 throw "Memory Corrupted!!";\
 }
-#define ME_MEM_INIT() ME::InitAllocator()
-#define ME_MEM_CLEAR() ME::DeInitAllocator()
+
+#endif
 
 #ifdef ME_MEM_DEEPDEBUG
 #include <unordered_map>
 #include <set>
 #endif
+
+#define ME_MEM_INIT() ME::InitAllocator()
+#define ME_MEM_CLEAR() ME::DeInitAllocator()
 
 namespace ME
 {
@@ -102,8 +112,12 @@ namespace ME
         ME_MEM_ERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
 
         T* ptr = (T*)MemoryManager::Allocator->allocate(sizeof(T) * count);
-#ifdef ME_MEM_DEBUG_2
-        ME_CORE_WARNING("Using alloc | Allocated Size: {} | {}", sizeof(T), (void*)ptr);
+#ifdef ME_MEM_DEBUG
+#ifndef ME_ISOLATE
+        ME_CORE_WARNING("Using alloc | Allocated Size: {} | {}", sizeof(T) * count, (void*)ptr);
+#else
+        std::cout << "WARNING: Using alloc | Allocated Size: " << sizeof(T) * count << " | " << (void*)ptr << std::endl;
+#endif
 #endif
         return ptr;
     }
@@ -114,8 +128,12 @@ namespace ME
         ME_MEM_ERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
         T* ptr = (T*)MemoryManager::Allocator->allocate(sizeof(T));
 
-#ifdef ME_MEM_DEBUG_2
+#ifdef ME_MEM_DEBUG
+#ifndef ME_ISOLATE
         ME_CORE_WARNING("Using allocon | Allocated Size: {} | {}", sizeof(T), (void*)ptr);
+#else
+        std::cout << "WARNING: Using allocon | Allocated Size: " << sizeof(T) << " | " << (void*)ptr << std::endl;
+#endif
 #endif
         new (ptr) T(args...);
         return ptr;
@@ -127,8 +145,12 @@ namespace ME
 
         ME_MEM_ERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
 
-#ifdef ME_MEM_DEBUG_2
+#ifdef ME_MEM_DEBUG
+#ifndef ME_ISOLATE
         ME_CORE_WARNING("Using dealloc | {}", (void*)ptr);
+#else
+        std::cout << "WARNING: Using dealloc | " << (void*)ptr << std::endl;
+#endif
 #endif
         ptr->~T();
         MemoryManager::Allocator->deallocate((void*)ptr);
@@ -140,13 +162,15 @@ namespace ME
         ME_MEM_ERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
 
         MemoryManager::Allocator->reallocate((void*&)ptr, size);
-#ifdef ME_MEM_DEBUG_2
-        ME_CORE_WARNING("using realloc | Reallocated Size: {} | {}", size, (void*)ptr);
+#ifdef ME_MEM_DEBUG
+#ifndef ME_ISOLATE
+        ME_CORE_WARNING("Using realloc | Reallocated Size: {} | {}", size, (void*)ptr);
+#else
+        std::cout << "WARNING: Using realloc | Reallocated Size: " << size << " | " << (void*)ptr << std::endl;
+#endif
 #endif
         return (T*)ptr;
     }
     static size_t Maxmem() noexcept { return MemoryManager::Allocator->getMaxMemory(); }
     static size_t LeftMem() noexcept { return MemoryManager::Allocator->getFreeMemory(); }
 }
-
-#endif // !MEMORYMANAGER
