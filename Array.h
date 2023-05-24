@@ -1,6 +1,3 @@
-#ifndef ME_ARRAY
-#define ME_ARRAY
-
 #pragma once
 
 template<typename T, size_t count> class Array
@@ -12,8 +9,8 @@ public:
 		*arr = initialize;
 		for (i = 1; i * 2 < count; i *= 2)
 			memcpy(arr + i, arr, sizeof(T) * i);
-		memcpy(arr + i, arr, sizeof(T)* (count - i - 1));
-	}	
+		memcpy(arr + i, arr, sizeof(T) * (count - i - 1));
+	}
 	template<typename ...Args>
 	Array(Args&& ...initialize)
 	{
@@ -21,7 +18,7 @@ public:
 		new (arr) T(initialize...);
 		for (i = 1; i * 2 < count; i *= 2)
 			memcpy(arr + i, arr, sizeof(T) * i);
-		memcpy(arr + i, arr, sizeof(T)* (count - i - 1));
+		memcpy(arr + i, arr, sizeof(T) * (count - i - 1));
 	}
 
 	T* begin() { return arr; }
@@ -33,4 +30,3 @@ public:
 private:
 	T arr[count];
 };
-#endif

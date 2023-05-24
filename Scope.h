@@ -1,9 +1,6 @@
-#ifndef ME_SCOPE
-#define ME_SCOPE
-
 #pragma once
 
-#include "MemoryManager.h"
+#include "Memory Manager/MemoryManager.h"
 namespace ME
 {
 	template<typename T, typename upstreammemory = alloc_dealloc_UpstreamMemory>
@@ -50,4 +47,3 @@ namespace ME
 		return Scope<U, upstreammemory>(Ptr);
 	}
 }
-#endif // !SCOPE
