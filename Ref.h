@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Memory Manager/MemoryManager.h"
+#include "Memory/MemoryManager.h"
 
 namespace ME
 {
@@ -9,12 +9,12 @@ namespace ME
 	 multiple reference of a pointer.
 	 TODO: Make this thread safe
 	**/
-	template<typename T, typename upstreammemory = alloc_dealloc_UpstreamMemory> struct ControlBlock
+	template<typename T, typename upstreammemory = MEUpstreamMemory> struct ControlBlock
 	{
 		size_t Count;
 		char Obj[sizeof(T)];
 	};
-	template<typename T, typename upstreammemory = alloc_dealloc_UpstreamMemory> class Ref
+	template<typename T, typename upstreammemory = MEUpstreamMemory> class Ref
 	{
 	public:
 
@@ -124,7 +124,7 @@ namespace ME
 		block* getControlBlock() { return ((block*)((char*)Ptr - sizeof(size_t))); }
 		template<typename T, typename ...Args, typename upstreammemory> friend Ref<T, upstreammemory> CreateRef(Args&& ...args);
 	};
-	template<typename T, typename ...Args, typename upstreammemory = alloc_dealloc_UpstreamMemory> Ref<T, upstreammemory> CreateRef(Args&& ...args)
+	template<typename T, typename ...Args, typename upstreammemory = MEUpstreamMemory> Ref<T, upstreammemory> CreateRef(Args&& ...args)
 	{
 		Ref<T, upstreammemory> ref;
 		ControlBlock<T, upstreammemory>* ptr = (ControlBlock<T, upstreammemory>*)(upstreammemory::stref->allocate(sizeof(ControlBlock<T, upstreammemory>), std::string("REF: Allocating Control Block for ") + typeid(T).name()));
@@ -135,5 +135,5 @@ namespace ME
 		return ref;
 	}
 
-	template<typename T> using ref = Ref<T, alloc_dealloc_UpstreamMemory>;
+	template<typename T> using ref = Ref<T, MEUpstreamMemory>;
 }

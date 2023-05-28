@@ -1,5 +1,10 @@
 #pragma once
 
+#ifndef ME_ARRAY
+
+#endif
+
+
 template<typename T, size_t count> class Array
 {
 public:

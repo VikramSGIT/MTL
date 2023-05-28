@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Memory Manager/MemoryManager.h"
+#include "Memory/MemoryManager.h"
 namespace ME
 {
-	template<typename T, typename upstreammemory = alloc_dealloc_UpstreamMemory>
+	template<typename T, typename upstreammemory = MEUpstreamMemory>
 	class Scope
 	{
 	public:
@@ -40,10 +40,11 @@ namespace ME
 		}
 		template<typename U, typename ...Args, typename memory> Scope<U, memory> friend CreateScope(Args ...args);
 	};
-	template<typename U, typename ...Args, typename upstreammemory = alloc_dealloc_UpstreamMemory> Scope<U, upstreammemory> CreateScope(Args ...args)
+	template<typename U, typename ...Args, typename upstreammemory = MEUpstreamMemory> Scope<U, upstreammemory> CreateScope(Args ...args)
 	{
 		U* Ptr = (U*)(upstreammemory::stref->allocate(sizeof(U), "SCOPE: Initializing scope"));
 		new (Ptr) U(args...);
 		return Scope<U, upstreammemory>(Ptr);
 	}
+	template<typename T> using scope = Scope<T, MEUpstreamMemory>;
 }
