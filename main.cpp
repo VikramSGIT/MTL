@@ -2,22 +2,27 @@
 // This file is only intended for internal testing purposes.
 
 
-#define PASS(X) std::cout << "\nTest " << X << " passed\n" << std::endl
-#define FAIL(X) std::cout << "\nTest " << X << " failed\n" << std::endl
+#define PASS(X) std::cout << "Test " << X << " passed" << std::endl
+#define FAIL(X) std::cout << "Test " << X << " failed" << std::endl
 #define RUN(X) std::cout << "\nRunning Test " << X << "\n" << std::endl
+
+#include <string>
+
+#define VALIDATESTR(STR, ANS)		\
+std::string out(STR), ans(ANS);		\
+if(out != ans) {throw "Failed";}
 
 #include "Memory/MemoryManager.h"
 #include "String.h"
 #include "Vector.h"
 
 #include <iostream>
-#include <sstream>
 
 using namespace ME;
 
 int main() {
 	try {
-		ME_MEM_INIT();
+		InitAllocator();
 	}
 	catch (...) {
 		std::cout << "Memory initialization failed! Aborting..." << std::endl;
@@ -25,7 +30,6 @@ int main() {
 	}
 	std::cout << "Memory initialization success" << std::endl;
 
-	std::stringstream ss;
 	{
 		// Memory test cases
 		{
@@ -47,7 +51,6 @@ int main() {
 			PASS(1.1);
 
 		jump121:
-			RUN("1.2.1");
 			// Testing reallocation skipping
 			try {
 				int* i = alloc<int>(1);
@@ -62,7 +65,6 @@ int main() {
 			}
 			PASS(1.2);
 		jump122:
-			RUN("1.2.2");
 			//Testing reallocation expanding
 			try {
 				size_t* i = alloc<size_t>(1);
@@ -77,7 +79,6 @@ int main() {
 			}
 			PASS("1.2.1");
 		jump13:
-			RUN(1.3);
 			// Testing reallocation copying
 			try {
 				size_t* i = alloc<size_t>(1);
@@ -95,7 +96,7 @@ int main() {
 			}
 
 		jump141:
-#ifdef ME_ENABLE_OVERFLOW_CHECK
+#ifdef ME_MEM_DEBUG
 			{
 				RUN("1.4.1");
 				// Testing bufferoverflow check
@@ -103,6 +104,7 @@ int main() {
 				try {
 					i[0] = 9;
 					i[1] = 8; // overwriting guradbytes
+					std::cout << "DON'T PANIC, This overflow was intended" << std::endl;
 					dealloc(i);
 				}
 				catch (...) {
@@ -118,6 +120,7 @@ int main() {
 				try {
 					i[0] = 9;
 					*(i - 1) = 8; // overwriting guardbytes
+					std::cout << "DON'T PANIC, This overflow was intended" << std::endl;
 					dealloc(i);
 				}
 				catch (...) {
@@ -129,7 +132,6 @@ int main() {
 			}
 #endif
 		jump15:
-			RUN(1.5);
 			// Bulk allocation, reallocation and deallocation
 			try {
 				size_t* i = alloc<size_t>(10000);
@@ -148,7 +150,6 @@ int main() {
 		RUN(2);
 		{
 			// Plain test
-			RUN(2.1);
 			try {
 				string s = "Hey";
 				s += ',';
@@ -157,7 +158,8 @@ int main() {
 
 				string ss = '!';
 				s += ss;
-				std::cout << s.c_str() << std::endl;
+				
+				VALIDATESTR(s.c_str(), "Hey, This is a test!");
 			}
 			catch (...) {
 				FAIL(2.1);
@@ -167,7 +169,6 @@ int main() {
 
 		jump22:
 			// Assignment test
-			RUN(2.2);
 			try {
 				string s;
 				s = 'H';
@@ -175,7 +176,7 @@ int main() {
 
 				string ss = "Hey, This is a test!";
 				s = ss;
-				std::cout << s.c_str() << std::endl;
+				VALIDATESTR(s.c_str(), "Hey, This is a test!");
 			}
 			catch (...) {
 				FAIL(2.2);
@@ -185,7 +186,6 @@ int main() {
 
 		jump23:
 			// Addition operator test
-			RUN(2.3);
 			try {
 				string s = "Hey";
 				s = s + ',';
@@ -193,7 +193,7 @@ int main() {
 
 				string ss = '!';
 				s = s + ss;
-				std::cout << s.c_str() << std::endl;
+				VALIDATESTR(s.c_str(), "Hey, This is a test!");
 			}
 			catch (...) {
 				FAIL(2.3);
@@ -203,7 +203,6 @@ int main() {
 
 		jump24:
 			// Capcity exploitation test
-			RUN(2.3);
 			try {
 				string s = "Hey, This is a test!";
 				s = "Hey";
@@ -212,7 +211,7 @@ int main() {
 
 				string ss = '!';
 				s += ss;
-				std::cout << s.c_str() << std::endl;
+				VALIDATESTR(s.c_str(), "Hey, This is a test!");
 			}
 			catch (...) {
 				FAIL(2.4);
@@ -222,11 +221,10 @@ int main() {
 
 		jump25:
 			//Erase test
-			RUN(2.4);
 			try {
 				string s = "Hey, This is a test!?";
 				s.erase(s.begin() + 20);
-				std::cout << s.c_str() << std::endl;
+				VALIDATESTR(s.c_str(), "Hey, This is a test!");
 			}
 			catch (...) {
 				FAIL(2.5);
@@ -235,7 +233,6 @@ int main() {
 			PASS(2.5);
 		
 		jump26:
-			RUN(2.6);
 			// clear and release
 			try {
 				string s = "Hey, This is a test!";
@@ -254,21 +251,26 @@ int main() {
 #endif
 		jump3:
 #ifdef ME_VECTOR
-#define PRINTVEC(X) for(auto item : X) {std:: cout << item << " ";} std::cout << std::endl
+#define VALIDATE_VEC_1(X, ANS)	{	\
+std::string cmp, ans(ANS);		\
+for(auto item : X) cmp += std::to_string(item); \
+if(cmp != ans) throw("Failed");}
+
+
 		// Vector Test
 		RUN(3);
 		{
 			// Initialization Test
 			try {
 				vector<size_t> i({ 1,2,3,4,5 });
-				PRINTVEC(i);
+				VALIDATE_VEC_1(i, "12345");
 
 				i = { 1,2,3,4,5 };
-				PRINTVEC(i);
+				VALIDATE_VEC_1(i, "12345");
 
 				vector<size_t> j({ 6,7,8,9,0 });
 				i = j;
-				PRINTVEC(i);
+				VALIDATE_VEC_1(i, "67890");
 			}
 			catch (...) {
 				FAIL(3.1);
@@ -281,22 +283,22 @@ int main() {
 			try {
 				vector<size_t> i({ 1,2,3,4 });
 				i.push_back(6);
-				PRINTVEC(i);
+				VALIDATE_VEC_1(i, "12346");
 
 				i.emplace_back(8);
-				PRINTVEC(i);
+				VALIDATE_VEC_1(i, "123468");
 
 				i.push(&(i[4]), 5);
-				PRINTVEC(i);
+				VALIDATE_VEC_1(i, "1234568");
 
 				i.push(&(i[6]), 7);
-				PRINTVEC(i);
+				VALIDATE_VEC_1(i, "12345678");
 
 				i.emplace(i.end(), 9);
-				PRINTVEC(i);
+				VALIDATE_VEC_1(i, "123456789");
 
 				i.emplace(i.begin(), 0);
-				PRINTVEC(i);
+				VALIDATE_VEC_1(i, "0123456789");
 			}
 			catch (...) {
 				FAIL(3.2);
@@ -310,7 +312,7 @@ int main() {
 			try {
 				vector<int> i = { 1, 2, 3, 4, 5 };
 				i.erase(&i[3]);
-				PRINTVEC(i);
+				VALIDATE_VEC_1(i, "1235");
 			}
 			catch (...) {
 				FAIL(3.3);
@@ -319,7 +321,6 @@ int main() {
 			PASS(3.3);
 
 		jump34:
-			RUN(3.4);
 			// Testing clear and release
 			try {
 				vector<int> i = { 1, 2, 3, 4, 5 };
@@ -335,22 +336,25 @@ int main() {
 			PASS(3.4);
 		}
 
-		jump4:
+	jump4:
+#define VALIDATE_VEC_2(X, ANS)	{	\
+std::string cmp, ans(ANS);			\
+for(auto item : X) cmp += item;		\
+if(cmp != ans) throw("Failed");}
 		// Test for CString vectors
 		RUN(4);
 		{
 			// Initialization Test
-			RUN(4.1);
 			try {
 				vector<const char*> i({ "Hey,", "This", "is", "a", "test!" });
-				PRINTVEC(i);
+				VALIDATE_VEC_2(i, "Hey,Thisisatest!");
 
 				i = { "Hey,", "This", "is", "a", "test!" };
-				PRINTVEC(i);
+				VALIDATE_VEC_2(i, "Hey,Thisisatest!");
 
 				vector<const char*> j = { "Hey,", "This", "is", "other", "test!" };
 				i = j;
-				PRINTVEC(i);
+				VALIDATE_VEC_2(j, "Hey,Thisisothertest!");
 			}
 			catch (...) {
 				FAIL(4.1);
@@ -360,18 +364,17 @@ int main() {
 
 		jump42:
 			// push and emplace test
-			RUN(4.2);
 			try {
 				vector<const char*> i;
 				i.push_back("Hey,");
-				PRINTVEC(i);
+				VALIDATE_VEC_2(i, "Hey,");
 				i.emplace_back("is");
-				PRINTVEC(i);
+				VALIDATE_VEC_2(i, "Hey,is");
 
 				i.push(i.begin() + 1, "This");
-				PRINTVEC(i);
+				VALIDATE_VEC_2(i, "Hey,Thisis");
 				i.emplace(i.end(), "a test!");
-				PRINTVEC(i);
+				VALIDATE_VEC_2(i, "Hey,Thisisa test!");
 			}
 			catch (...) {
 				FAIL(4.2);
@@ -384,7 +387,7 @@ int main() {
 			try {
 				vector<const char*> i({ "Hey,", "This", "is", "a", "test!" });
 				i.erase(i.begin());
-				PRINTVEC(i);
+				VALIDATE_VEC_2(i, "Thisisatest!");
 			}
 			catch (...) {
 				FAIL(4.3);
@@ -412,11 +415,11 @@ int main() {
 		// Ref test
 	jumpend:
 		try {
-			ME_MEM_CLEAR();
+			DeInitAllocator();
 		}
 		catch (...) {
-			std::cout << "Error while exiting" << std::endl;
+			std::cout << "\nError while exiting" << std::endl;
 		}
-		std::cout << "No Errors while exiting" << std::endl;
+		std::cout << "\nNo Errors while exiting" << std::endl;
 	}
 }

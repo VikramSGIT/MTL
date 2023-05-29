@@ -22,7 +22,8 @@ namespace ME
 			m_Capacity = m_Size;
 			if (string == nullptr) return;
 
-			m_String = (char*)upstreammemory::stref->allocate(m_Capacity + 1, "STRING: Allocating String");
+			m_String = (char*)upstreammemory::stref->allocate(m_Capacity + 1);
+			upstreammemory::stref->message("STRING: Allocating String");
 			memcpy(m_String, string, sizeof(char) * (m_Size + 1));
 			*(m_String + m_Size) = '\0';
 		}
@@ -30,7 +31,8 @@ namespace ME
 			:m_Size(1)
 		{
 			m_Capacity = m_Size;
-			m_String = (char*)upstreammemory::stref->allocate(m_Capacity + 1, "STRING: Allocating String");
+			m_String = (char*)upstreammemory::stref->allocate(m_Capacity + 1);
+			upstreammemory::stref->message("STRING: Allocating String");
 			*m_String = string;
 			*(m_String + m_Size) = '\0';
 		}
@@ -40,15 +42,18 @@ namespace ME
 			if (string.m_String == nullptr) return;
 
 			m_Capacity = m_Size;
-			m_String = (char*)upstreammemory::stref->allocate(m_Capacity + 1, "STRING: Allocating String");
+			m_String = (char*)upstreammemory::stref->allocate(m_Capacity + 1);
+			upstreammemory::stref->message("STRING: Allocating String");
 			memcpy(m_String, string.m_String, m_Size);
 			*(m_String + m_Size) = '\0';
 		}
 
 
 		~String() {
-			if(m_Capacity != 0)
-				upstreammemory::stref->deallocate(m_String, "STRING: Deallocating String");
+			if(m_Capacity != 0){ 
+				upstreammemory::stref->deallocate(m_String);
+				upstreammemory::stref->message("STRING: Deallocating String");
+			}
 		}
 
 		inline const char* c_str() const { return m_String; }
@@ -87,8 +92,10 @@ namespace ME
 		String operator=(const String& right) {
 			m_Size = right.m_Size;
 			if (m_Capacity < m_Size) {
-				upstreammemory::stref->deallocate(m_String, "STRING: Deallocating old String");
-				m_String = (char*)upstreammemory::stref->allocate(m_Size + 1, "STRING: Allocating String");
+				upstreammemory::stref->deallocate(m_String);
+				upstreammemory::stref->message("STRING: Deallocating old String");
+				m_String = (char*)upstreammemory::stref->allocate(m_Size + 1);
+				upstreammemory::stref->message("STRING: Allocating String");
 				m_Capacity = m_Size;
 			}
 			else {
@@ -102,8 +109,10 @@ namespace ME
 		String operator=(const char* right) {
 			m_Size = strlen(right);
 			if (m_Size > m_Capacity) {
-				upstreammemory::stref->deallocate(m_String, "STRING: Deallocating old String");
-				m_String = (char*)upstreammemory::stref->allocate(m_Size + 1, "STRING: Allocating String");
+				upstreammemory::stref->deallocate(m_String);
+				upstreammemory::stref->message("STRING: Deallocating old String");
+				m_String = (char*)upstreammemory::stref->allocate(m_Size + 1);
+				upstreammemory::stref->message("STRING: Allocating String");
 				m_Capacity = m_Size;
 			}
 			else {
@@ -117,8 +126,10 @@ namespace ME
 		String operator=(const char right) {
 			m_Size = 1;
 			if (m_Capacity < 1) {
-				upstreammemory::stref->deallocate(m_String, "STRING: Deallocating old String");
-				m_String = (char*)upstreammemory::stref->allocate(m_Size + 1, "STRING: Allocating String");
+				upstreammemory::stref->deallocate(m_String);
+				upstreammemory::stref->message("STRING: Deallocating old String");
+				m_String = (char*)upstreammemory::stref->allocate(m_Size + 1);
+				upstreammemory::stref->message("STRING: Allocating String");
 				m_Capacity = m_Size;
 			}
 			else {
@@ -186,7 +197,8 @@ namespace ME
 		String operator+=(const char& right)
 		{
 			if (m_Capacity - m_Size < 1) {
-				upstreammemory::stref->reallocate((void*&)m_String, 1, "STRING: Expanding String");
+				upstreammemory::stref->reallocate((void*&)m_String, 1);
+				upstreammemory::stref->message("STRING: Expanding String");
 				m_Capacity++;
 			}
 #ifdef ME_MEM_DEBUG
@@ -205,7 +217,8 @@ namespace ME
 		{
 			size_t r_size = strlen(right);
 			if (m_Capacity - m_Size < r_size) {
-				upstreammemory::stref->reallocate((void*&)m_String, r_size, "STRING: Expanding String");
+				upstreammemory::stref->reallocate((void*&)m_String, r_size);
+				upstreammemory::stref->message("STRING: Expanding String");
 				m_Capacity += r_size;
 			}
 #ifdef ME_MEM_DEBUG
@@ -223,7 +236,8 @@ namespace ME
 		String operator+=(const String& right)
 		{
 			if (m_Capacity - m_Size < right.m_Size) {
-				upstreammemory::stref->reallocate((void*&)m_String, right.m_Size, "STRING: Expanding String");
+				upstreammemory::stref->reallocate((void*&)m_String, right.m_Size);
+				upstreammemory::stref->message("STRING: Expanding String");
 				m_Capacity += right.m_Size;
 			}
 #ifdef ME_MEM_DEBUG
@@ -281,7 +295,8 @@ namespace ME
 		}
 
 		String (const size_t& size)
-			:m_Size(size), m_String((char*)upstreammemory::stref->allocate(size + 1, "STRING: Initiating String")) {
+			:m_Size(size), m_String((char*)upstreammemory::stref->allocate(size + 1)) {
+			upstreammemory::stref->message("STRING: Initiating String");
 			*(m_String + m_Size) = '\0';
 			m_Capacity = size;
 		}

@@ -1,17 +1,26 @@
 #pragma once
 
 #define ME_BUCKETSIZE 8 // make sure it to be powers of 2
-#define ME_BUCKETCOUNT 1000
+#define ME_BUCKETCOUNT 10000
 
 #define ME_POOLGUARDCOUNT 2 // used to identify the start and end of pool
 #define ME_POOLGUARD -1.01101110
 
-#ifdef ME_ENABLE_OVERFLOW_CHECK
+#ifdef ME_MEM_DEBUG
 #define ME_BUCKETGUARDCOUNT 2 // used to identify the start and end of a allocated bucket
 #define ME_GUARDBUCKET -1011.01001011
+
+#define ME_METASIZE 0
 #else
 #define ME_BUCKETGUARDCOUNT 0
 #define ME_GUARDBUCKET
+
+// Always Ensure the metadata size matches with bucket size
+struct metadata {
+	size_t size;
+};
+
+#define ME_METASIZE sizeof(metadata)
 #endif
 
 #include "MemoryManager.h"
@@ -26,6 +35,9 @@ namespace ME
 	{
 		char item[bytes];
 		Bucket* next;
+#ifndef ME_MEM_DEBUG
+		metadata meta;
+#endif
 		double GUARD;
 	};
 	typedef Bucket<ME_BUCKETSIZE> bucket;
@@ -37,8 +49,10 @@ namespace ME
 		PoolAllocator()
 			:Size(ME_BUCKETCOUNT * sizeof(bucket)), Count(0), PoolCount(1), expanded(false)
 		{
-			bucket* cur = (bucket*)upstreammemory::stref->allocate(sizeof(bucket) * (ME_BUCKETCOUNT + ME_POOLGUARDCOUNT), "POOLALLOCATOR: Pool Initialization");
-			m_Pools = (Pool*)upstreammemory::stref->allocate(sizeof(Pool), "POOLALLOCATOR: Initializating pool ledger");
+			bucket* cur = (bucket*)upstreammemory::stref->allocate(sizeof(bucket) * (ME_BUCKETCOUNT + ME_POOLGUARDCOUNT));
+			upstreammemory::stref->message("POOLALLOCATOR: Pool Initialization");
+			m_Pools = (Pool*)upstreammemory::stref->allocate(sizeof(Pool));
+			upstreammemory::stref->message("POOLALLOCATOR: Initializating pool ledger");
 
 			(cur + ME_BUCKETCOUNT)->GUARD = ME_POOLGUARD;
 			cur->GUARD = ME_POOLGUARD;
@@ -57,12 +71,15 @@ namespace ME
 
 		~PoolAllocator() 
 		{
-#ifdef ME_ENABLE_OVERFLOW_CHECK
+#ifdef ME_MEM_DEBUG
 			checkBufferOverflows();
 #endif
-			for (size_t i = 0; i < PoolCount; i++)
-				upstreammemory::stref->deallocate(m_Pools[i].Head - 1, "POOLALLOCATOR: Deallocating Pool");
-			upstreammemory::stref->deallocate(m_Pools, "POOLALLOCATOR: Deallocating pool ledger");
+			for (size_t i = 0; i < PoolCount; i++) {
+				upstreammemory::stref->deallocate(m_Pools[i].Head - 1);
+				upstreammemory::stref->message("POOLALLOCATOR: Deallocating Pool");
+			}
+			upstreammemory::stref->deallocate(m_Pools);
+			upstreammemory::stref->message("POOLALLOCATOR: Deallocating pool ledger");
 		}
 
 		virtual void* allocate(const size_t& size = ME_BUCKETSIZE) override
@@ -79,10 +96,10 @@ namespace ME
 				if (cur->next - cur != 1)
 					continious = 0;
 
-				if (continious * sizeof(bucket) >= (size + (ME_BUCKETSIZE * ME_BUCKETGUARDCOUNT)))
+				if (continious * sizeof(bucket) >= (size + (ME_BUCKETSIZE * ME_BUCKETGUARDCOUNT) + ME_METASIZE))
 				{
 					m_nextFree = cur->next;
-#ifdef ME_ENABLE_OVERFLOW_CHECK
+#ifdef ME_MEM_DEBUG
 					m_AllocationBook[cur - (continious - 2)] = size;
 					cur->GUARD = ME_GUARDBUCKET;
 					(cur - (continious - 1))->GUARD = ME_GUARDBUCKET;
@@ -90,8 +107,10 @@ namespace ME
 					Count += continious * sizeof(bucket);
 					continious--; // offset guardbytes
 #else
-					m_AllocationBook[cur - (continious - 1)] = size;
+					(cur - (continious - 1))->meta.size = size; // filling meta
+					
 					Count += continious * sizeof(bucket);
+					continious--; // offset guardbytes
 #endif
 					expanded = false;
 					return reinterpret_cast<void*>(cur - (continious - 1));
@@ -109,13 +128,20 @@ namespace ME
 
 			//std::lock_guard<std::mutex>(m_Lock);
 
+			// no need for unknown value protection, getBucketCount checks for it.
+			// NOTE: On release build there is ZERO protection to verify if the pointer is valid!!
 			size_t continious = 0, filledbuckets = getBucketCount(ptr);
-			if (m_AllocationBook[ptr] + size <= filledbuckets * ME_BUCKETSIZE) { // no need for unknown value protection, getBucketCount checks for it.
-				upstreammemory::stref->message("POOLALLOCATOR: Skipping reallocation request as bucket is not full.");
+#ifdef ME_MEM_DEBUG
+			if (m_AllocationBook[ptr] + size <= filledbuckets * ME_BUCKETSIZE) {
 				m_AllocationBook[ptr] += size;
+#else
+			if ((reinterpret_cast<bucket*>(ptr) - 1)->meta.size + size <= filledbuckets * ME_BUCKETSIZE) {
+				(reinterpret_cast<bucket*>(ptr) - 1)->meta.size += size;
+#endif
+				upstreammemory::stref->message("POOLALLOCATOR: Skipping reallocation request as bucket is not full.");
 				return ptr;
 			}
-#ifdef ME_ENABLE_OVERFLOW_CHECK
+#ifdef ME_MEM_DEBUG
 			bucket* cur = (bucket*)ptr + filledbuckets + 1; //offset for guard bucket
 #else
 			bucket* cur = (bucket*)ptr + filledbuckets;
@@ -129,11 +155,13 @@ namespace ME
 
 					if (continious * sizeof(bucket) >= size) {
 						m_nextFree = cur->next;
-#ifdef ME_ENABLE_OVERFLOW_CHECK
+#ifdef ME_MEM_DEBUG
 						memset((bucket*)ptr + filledbuckets, 0, ME_BUCKETSIZE); // removes guardbucket, security purposes
 						cur->GUARD = ME_GUARDBUCKET;
-#endif
 						m_AllocationBook[ptr] += size;
+#else
+						(reinterpret_cast<bucket*>(ptr) - 1)->meta.size += size;
+#endif
 						Count += continious * sizeof(bucket);
 						return ptr;
 					}
@@ -157,39 +185,33 @@ namespace ME
 
 			size_t filledbuckets = getBucketCount(ptr);
 
-#ifdef ME_ENABLE_OVERFLOW_CHECK
+#ifdef ME_MEM_DEBUG
 			checkBufferOverflow(ptr);
 			
 			bucket* cur = reinterpret_cast<bucket*>(ptr) - 1;
 			bucket* end = reinterpret_cast<bucket*>(ptr) + filledbuckets;
+			m_AllocationBook.erase(ptr);
 #else
-			bucket* cur = reinterpret_cast<bucket*>(ptr);
-			bucket* end = cur + filledbuckets - 1;
+			bucket* cur = reinterpret_cast<bucket*>(ptr) - 1; // includes metadata
+			bucket* end = cur + filledbuckets;
 #endif
-			size_t size = 1;
 			while (cur != end && cur->GUARD != ME_POOLGUARD)
 			{
 				cur->next = (cur + 1);
 				cur = cur->next;
-				size++;
 			}
 			cur->next = m_nextFree;
-#ifdef ME_ENABLE_OVERFLOW_CHECK
 			m_nextFree = reinterpret_cast<bucket*>(ptr) - 1;
-#else
-			m_nextFree = reinterpret_cast<bucket*>(ptr);
-#endif
-			//ME_MEMERROR(belongs(cur), "Memory out of Bound!!"); Causing issues
-
-			Count -= size * sizeof(bucket);
-			m_AllocationBook.erase(ptr);
+			Count -= (filledbuckets + ME_BUCKETGUARDCOUNT) * sizeof(bucket) + ME_METASIZE;
 		}
 		virtual void forced_deallocate(void* ptr) override {
 			if (ptr == nullptr) return;
 
+#ifdef ME_MEM_DEBUG
 			bucket* p = reinterpret_cast<bucket*>(ptr);
 			(p - 1)->GUARD = ME_GUARDBUCKET;
 			(p + getBucketCount(ptr))->GUARD = ME_GUARDBUCKET;
+#endif
 			deallocate(ptr);
 		}
 		virtual void release() override
@@ -207,10 +229,8 @@ namespace ME
 			}
 			// Setting last Pool's PoolGuard to nullptr
 			(m_Pools[PoolCount - 1].Head + m_Pools[PoolCount - 1].Size)->next = nullptr;
-#ifndef ME_ISOLATE
-			ME_CORE_WARNING("POOLALLOCATOR: Memory Realeased!!");
-#else
-			std::cout << "WARNING: POOLALLOCATOR: Memory Realeased!!" << std::endl;
+#ifdef ME_MEM_DEBUG
+			upstreammemory::stref->message("POOLALLOCATOR: Memory Released");
 #endif
 		}
 
@@ -241,10 +261,15 @@ namespace ME
 
 		size_t getBucketCount(void* ptr)
 		{
+			size_t res;
+#ifdef ME_MEM_DEBUG
 			auto it = m_AllocationBook.find(ptr);
-			ME_MEM_ERROR(it != m_AllocationBook.end(), "Invalid pointer found!!")
-
-			return std::ceilf(it->second * 1.0f/ME_BUCKETSIZE);
+			ME_MEM_ERROR(it != m_AllocationBook.end(), "Invalid pointer found!!");
+			res = it->second;
+#else
+			res = (reinterpret_cast<bucket*>(ptr) - 1)->meta.size;
+#endif
+			return std::ceilf(res * 1.0f/ME_BUCKETSIZE);
 		}
 
 		inline bucket* BucketCorrection(const void* ptr)
@@ -272,7 +297,8 @@ namespace ME
 #endif
 
 			// Pool Expantion
-			bucket* poolhead = (bucket*)upstreammemory::stref->allocate(sizeof(bucket) * (count + ME_POOLGUARDCOUNT), "POOLALLOCATOR: Allocating Extra Pool");
+			bucket* poolhead = (bucket*)upstreammemory::stref->allocate(sizeof(bucket) * (count + ME_POOLGUARDCOUNT));
+			upstreammemory::stref->message("POOLALLOCATOR: Allocating Extra Pool");
 			// Pool Initialization
 			(poolhead + count)->GUARD = ME_POOLGUARD;
 			poolhead->GUARD = ME_POOLGUARD;
@@ -292,11 +318,13 @@ namespace ME
 			m_nextFree = poolhead;
 
 			// Expanding PoolLedger
-			Pool *newpool = (Pool*)upstreammemory::stref->allocate(sizeof(Pool) * (PoolCount + 1), "POOLALLOCATOR: Allocating new ledger");
+			Pool *newpool = (Pool*)upstreammemory::stref->allocate(sizeof(Pool) * (PoolCount + 1));
+			upstreammemory::stref->message("POOLALLOCATOR: Allocating new ledger");
 			memcpy(newpool, m_Pools, sizeof(Pool) * PoolCount);
 			(newpool + PoolCount)->Head = poolhead;
 			(newpool + PoolCount)->Size = (count + ME_POOLGUARDCOUNT);
-			upstreammemory::stref->deallocate(m_Pools, "POOLALLOCATOR: Deallocating old ledger");
+			upstreammemory::stref->deallocate(m_Pools);
+			upstreammemory::stref->message("POOLALLOCATOR: Deallocating old ledger");
 			PoolCount++;
 
 			m_Pools = newpool;
@@ -322,7 +350,7 @@ namespace ME
 		std::unordered_map<void*, size_t> m_AllocationBook;
 
 		std::mutex m_Lock;
-#ifdef ME_ENABLE_OVERFLOW_CHECK
+#ifdef ME_MEM_DEBUG
 		void checkBufferOverflow(void* ptr) {
 			bool front = ((bucket*)(ptr) - 1)->GUARD == ME_GUARDBUCKET;
 			bool back = ((bucket*)(ptr) + getBucketCount(ptr))->GUARD == ME_GUARDBUCKET;

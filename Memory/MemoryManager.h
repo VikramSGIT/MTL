@@ -21,66 +21,23 @@ throw "Memory Corrupted!!";\
 
 #endif
 
-#define ME_MEM_INIT() ME::InitAllocator()
-#define ME_MEM_CLEAR() ME::DeInitAllocator()
+void InitAllocator();
+void DeInitAllocator();
 
 namespace ME
 {
     typedef unsigned long long size_t;
 
-    void InitAllocator();
-    void DeInitAllocator();
-
-    class UpstreamMemory
-    {
-    public:
-        virtual void* allocate(const size_t& size, std::string msg = "") = 0;
-        virtual void* reallocate(void *&ptr, const size_t& size, std::string msg = "") = 0;
-        virtual void deallocate(void* ptr, std::string msg = "") = 0;
-        virtual void forced_deallocated(void* ptr, std::string msg = "") = 0;
-
-        virtual void message(const char* msg) = 0;
-    };
-    class STDUpstreamMemory : public UpstreamMemory
-    {
-    public:
-        virtual void* allocate(const size_t& size, std::string msg = "") override;
-        virtual void* reallocate(void *&ptr, const size_t& size, std::string msg = "") override;
-        virtual void deallocate(void* ptr, std::string msg = "") override;
-        virtual void forced_deallocated(void* ptr, std::string msg = "") override {} // DONT USE!! needed fix
-
-        virtual void message(const char* msg) override;
-
-        static STDUpstreamMemory* stref;
-    };
-    class MEUpstreamMemory : public UpstreamMemory
-    {
-    public:
-        virtual void* allocate(const size_t& size, std::string msg = "") override;
-        virtual void* reallocate(void *&ptr, const size_t& size, std::string msg = "") override;
-        virtual void deallocate(void* ptr, std::string msg = "") override;
-        virtual void forced_deallocated(void* ptr, std::string msg = "") override;
-
-        virtual void message(const char* msg) override;
-
-        static MEUpstreamMemory* stref;
-    };
-
-    static UpstreamMemory* getSTDUpstreamMemory() { return STDUpstreamMemory::stref; }
-    static UpstreamMemory* getMEUpstreamMemory() { return MEUpstreamMemory::stref; }
-
     class MemoryManager
     {
     public:
-        UpstreamMemory* m_UpstreamMemory;
-
-        MemoryManager(UpstreamMemory* upstreammemory = getMEUpstreamMemory());
+        MemoryManager() = default;
         ~MemoryManager() = default;
 
         static int CheckHeapIntegrity() { return _CrtCheckMemory(); }
 
         [[nodiscard]] virtual void* allocate(const size_t&) = 0;
-        [[nodiscard]] virtual void* reallocate(void *&, const size_t&) = 0;
+        [[nodiscard]] virtual void* reallocate(void*&, const size_t&) = 0;
         virtual void deallocate(void*) = 0;
         virtual void forced_deallocate(void*) = 0;
 
@@ -89,12 +46,61 @@ namespace ME
         virtual size_t getFreeMemory() noexcept = 0;
         virtual size_t getMaxMemory() noexcept = 0;
         virtual size_t getUsedMemory() noexcept = 0;
-#ifdef ME_MEM_DEEPDEBUG
-        virtual const std::unordered_map<void*, std::set<long long>>& getAllocationRegistry() = 0;
-#endif
+
         // The global Allocator
         static MemoryManager* Allocator;
     };
+
+    class UpstreamMemory
+    {
+    public:
+        virtual void* allocate(const size_t& size) = 0;
+        virtual void* reallocate(void *&ptr, const size_t& size) = 0;
+        virtual void deallocate(void* ptr) = 0;
+        virtual void forced_deallocated(void* ptr) = 0;
+
+        template<typename ...Args>
+        void message(Args... args) {
+            std::cout << "WARNING: ";
+            ((std::cout << args << " "), ...);
+            std::cout << std::endl;
+        }
+    };
+    class STDUpstreamMemory : public UpstreamMemory
+    {
+    public:
+        virtual void* allocate(const size_t& size) override { return std::malloc(size); }
+        virtual void* reallocate(void*& ptr, const size_t& size) override { return std::realloc(ptr, size); }
+        virtual void deallocate(void* ptr) override { return std::free(ptr); }
+        virtual void forced_deallocated(void* ptr) override { return std::free(ptr); }
+
+        static STDUpstreamMemory* stref;
+    };
+    class MEUpstreamMemory : public UpstreamMemory
+    {
+    public:
+        virtual void* allocate(const size_t& size) override {
+            ME_MEM_ERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
+            return MemoryManager::Allocator->allocate(size);
+        }
+        virtual void* reallocate(void*& ptr, const size_t& size) override {
+            ME_MEM_ERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
+            return MemoryManager::Allocator->reallocate(ptr, size);
+        }
+        virtual void deallocate(void* ptr) override {
+            ME_MEM_ERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
+            return MemoryManager::Allocator->deallocate(ptr);
+        }
+        virtual void forced_deallocated(void* ptr) override {
+            ME_MEM_ERROR(MemoryManager::Allocator != nullptr, "Allocator not initialized!!");
+            return MemoryManager::Allocator->forced_deallocate(ptr);
+        }
+
+        static MEUpstreamMemory* stref;
+    };
+
+    static UpstreamMemory* getSTDUpstreamMemory() { return STDUpstreamMemory::stref; }
+    static UpstreamMemory* getMEUpstreamMemory() { return MEUpstreamMemory::stref; }
 
     // Faster global Allocators
     // Params Size: Number of variable to be allocated

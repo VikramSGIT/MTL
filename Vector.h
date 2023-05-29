@@ -22,14 +22,16 @@ namespace ME
 		Vector()
 			:m_Capacity(ME_DEFAULT_VECTOR_SIZE), m_Size(0)
 		{
-			m_Head = (T*)upstreammemory::stref->allocate(sizeof(T) * m_Capacity, "VECTOR: Initialization");
+			m_Head = (T*)upstreammemory::stref->allocate(sizeof(T) * m_Capacity);
+			upstreammemory::stref->message("VECTOR: Initialization");
 		}
 		Vector(const std::initializer_list<T>& list)
 			:m_Size(list.size())
 		{
 			m_Capacity = std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE);
-			m_Head = (T*)upstreammemory::stref->allocate(sizeof(T) * (m_Capacity), "VECTOR: Initialization using list");
-			
+			m_Head = (T*)upstreammemory::stref->allocate(sizeof(T) * (m_Capacity));
+			upstreammemory::stref->message("VECTOR: Initialization using list");
+
 			T* it = m_Head;
 			for (T const& i : list)
 				*it++ = i;
@@ -38,7 +40,8 @@ namespace ME
 			:m_Size(vector.size())
 		{
 			m_Capacity = std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE);
-			m_Head = (T*)upstreammemory::stref->allocate(sizeof(T) * (m_Capacity), "VECTOR: Copying");
+			m_Head = (T*)upstreammemory::stref->allocate(sizeof(T) * (m_Capacity));
+			upstreammemory::stref->message("VECTOR: Copying");
 			memcpy(m_Head, vector.m_Head, vector.size() * sizeof(T));
 		}
 
@@ -46,8 +49,10 @@ namespace ME
 			m_Size = list.size();
 			if (m_Capacity < m_Size) {
 				m_Capacity = std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE);
-				upstreammemory::stref->deallocate(m_Head, "VECTOR: Insufficient capacity");
-				m_Head = (T*)upstreammemory::stref->allocate(sizeof(T) * m_Capacity, "VECTOR: Increased capacity");
+				upstreammemory::stref->deallocate(m_Head);
+				upstreammemory::stref->message("VECTOR: Insufficient capacity");
+				m_Head = (T*)upstreammemory::stref->allocate(sizeof(T) * m_Capacity);
+				upstreammemory::stref->message("VECTOR: Increased capacity");
 			}
 
 			T* it = m_Head;
@@ -61,8 +66,10 @@ namespace ME
 			m_Size = right.size();
 			if (m_Capacity < m_Size) {
 				m_Capacity = std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE);
-				upstreammemory::stref->deallocate(m_Head, "VECTOR: Insufficient capacity");
-				m_Head = (T*)upstreammemory::stref->allocate(sizeof(T) * m_Capacity, "VECTOR: Increased capacity");
+				upstreammemory::stref->deallocate(m_Head);
+				upstreammemory::stref->message("VECTOR: Insufficient capacity");
+				m_Head = (T*)upstreammemory::stref->allocate(sizeof(T) * m_Capacity);
+				upstreammemory::stref->message("VECTOR: Increased capacity");
 			}
 
 			memcpy(m_Head, right.m_Head, right.size() * sizeof(T));
@@ -74,7 +81,8 @@ namespace ME
 			if (m_Capacity != 0) {
 				while (it != end())
 					it++->~T();
-				upstreammemory::stref->deallocate(m_Head, "VECTOR: Deinitializing");
+				upstreammemory::stref->deallocate(m_Head);
+				upstreammemory::stref->message("VECTOR: Deinitializing");
 			}
 		}
 
@@ -151,7 +159,8 @@ namespace ME
 		void release() {
 			if (m_Capacity != 0) {
 				clear();
-				upstreammemory::stref->deallocate(m_Head, "VECTOR: Releasing memory");
+				upstreammemory::stref->deallocate(m_Head);
+				upstreammemory::stref->message("VECTOR: Releasing memory");
 				m_Capacity = 0;
 			}
 		}
@@ -167,7 +176,8 @@ namespace ME
 	private:
 		void expand(const size_t& count)
 		{
-			upstreammemory::stref->reallocate((void*&)m_Head, count * sizeof(T), "VECTOR: Expanding");
+			upstreammemory::stref->reallocate((void*&)m_Head, count * sizeof(T));
+			upstreammemory::stref->message("VECTOR: Expanding");
 			m_Capacity += count;
 		}
 
@@ -183,19 +193,22 @@ namespace ME
 		Vector()
 			:m_Capacity(ME_DEFAULT_VECTOR_SIZE), m_Size(0) 
 		{
-			m_Head = (char**)upstreammemory::stref->allocate(sizeof(const char*) * (m_Capacity), "VECTOR: Initialization");
+			m_Head = (char**)upstreammemory::stref->allocate(sizeof(const char*) * (m_Capacity));
+			upstreammemory::stref->message("VECTOR: Initialization");
 		}
 
 		Vector(const std::initializer_list<const char*>& list)
 			:m_Size(list.size())
 		{
 			m_Capacity = std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE);
-			m_Head = (char**)upstreammemory::stref->allocate(sizeof(const char*) * (m_Capacity), "VECTOR: Initialization using list");
-			
+			m_Head = (char**)upstreammemory::stref->allocate(sizeof(const char*) * (m_Capacity));
+			upstreammemory::stref->message("VECTOR: Initialization");
+
 			char** it = m_Head;
 			for (const char* str : list) {
 				size_t len = strlen(str);
-				*it = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1, "VECTOR: Allocating Cstring");
+				*it = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1);
+				upstreammemory::stref->message("VECTOR: Allocating Cstring");
 				memcpy(*it, str, len + 1);
 				it++;
 			}
@@ -204,12 +217,14 @@ namespace ME
 			:m_Size(vector.size())
 		{
 			m_Capacity = std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE);
-			m_Head = (char**)upstreammemory::stref->allocate(sizeof(const char*) * (m_Capacity), "VECTOR: Copying");
+			m_Head = (char**)upstreammemory::stref->allocate(sizeof(const char*) * (m_Capacity));
+			upstreammemory::stref->message("VECTOR: Copying");
 
 			char** it = m_Head;
 			for (const char* str : vector) {
 				size_t len = strlen(str);
-				*it = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1, "VECTOR: Allocating Cstring");
+				*it = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1);
+				upstreammemory::stref->message("VECTOR: Allocating Cstring");
 				memcpy(*it, str, len + 1);
 				it++;
 			}
@@ -217,20 +232,25 @@ namespace ME
 
 		Vector& operator=(const Vector& right) {
 			char** it = m_Head;
-			while (it != (m_Head + m_Size))
-				upstreammemory::stref->deallocate(*it++, "VECTOR: Deallocating old CString");
+			while (it != (m_Head + m_Size)) {
+				upstreammemory::stref->deallocate(*it++);
+				upstreammemory::stref->message("VECTOR: Deallocating old CString");
+			}
 
 			m_Size = right.size();
 			if (m_Capacity < m_Size) {
 				m_Capacity = std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE);
-				upstreammemory::stref->deallocate(m_Head, "VECTOR: Insufficient capacity");
-				m_Head = (char**)upstreammemory::stref->allocate(sizeof(const char*) * m_Capacity, "VECTOR: Increased capacity");
+				upstreammemory::stref->deallocate(m_Head);
+				upstreammemory::stref->message("VECTOR: Insufficient capacity");
+				m_Head = (char**)upstreammemory::stref->allocate(sizeof(const char*) * m_Capacity);
+				upstreammemory::stref->message("VECTOR: Increased capacity");
 			}
 
 			it = m_Head;
 			for (const char* str : right) {
 				size_t len = strlen(str);
-				*it = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1, "VECTOR: Allocating Cstring");
+				*it = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1);
+				upstreammemory::stref->message("VECTOR: Allocating Cstring");
 				memcpy(*it, str, len + 1);
 				it++;
 			}
@@ -240,20 +260,26 @@ namespace ME
 		Vector& operator=(const std::initializer_list<const char*>& list) {
 
 			char** it = m_Head;
-			while (it != (m_Head + m_Size))
-				upstreammemory::stref->deallocate(*it++, "VECTOR: Deallocating old CString");
+			while (it != (m_Head + m_Size)) {
+				upstreammemory::stref->deallocate(*it++);
+				upstreammemory::stref->message("VECTOR: Deallocating old CString");
+
+			}
 
 			m_Size = list.size();
 			if (m_Capacity < m_Size) {
 				m_Capacity = m_Size;
-				upstreammemory::stref->deallocate(m_Head, "VECTOR: Insufficient capacity");
-				m_Head = (char**)upstreammemory::stref->allocate(sizeof(const char*) * m_Capacity, "VECTOR: Increased capacity");
+				upstreammemory::stref->deallocate(m_Head);
+				upstreammemory::stref->message("VECTOR: Insufficient capacity");
+				m_Head = (char**)upstreammemory::stref->allocate(sizeof(const char*) * m_Capacity);
+				upstreammemory::stref->message("VECTOR: Increased capacity");
 			}
 
 			it = m_Head;
 			for (const char* str : list) {
 				size_t len = strlen(str);
-				*it = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1, "VECTOR: Allocating Cstring");
+				*it = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1);
+				upstreammemory::stref->message("VECTOR: Allocating Cstring");
 				memcpy(*it, str, len + 1);
 				it++;
 			}
@@ -263,9 +289,12 @@ namespace ME
 		~Vector() {
 			char** it = begin();
 			if (m_Capacity != 0) {
-				while (it != end())
-					upstreammemory::stref->deallocate(*it++, "VECTOR: Deallocating Cstring");
-				upstreammemory::stref->deallocate(m_Head, "VECTOR: Deinitializing");
+				while (it != end()) {
+					upstreammemory::stref->deallocate(*it++);
+					upstreammemory::stref->message("VECTOR: Deallocating CString");
+				}
+				upstreammemory::stref->deallocate(m_Head);
+				upstreammemory::stref->message("VECTOR: Deinitializing");
 			}
 		}
 
@@ -273,7 +302,8 @@ namespace ME
 			if (m_Capacity == m_Size) expand(std::ceilf(m_Size * ME_VECTOR_SCALE));
 
 			size_t len = strlen(element);
-			*end() = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1, "VECTOR: Allocating Cstring");
+			*end() = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1);
+			upstreammemory::stref->message("VECTOR: Allocating Cstring");
 			char* it = *end();
 			memcpy(it, element, len);
 			*(it + len) = '\0';
@@ -292,7 +322,8 @@ namespace ME
 			memmove(m_Head + at + 1, m_Head + at, (m_Size - at) * sizeof(const char*));
 
 			size_t len = strlen(element);
-			*pos = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1, "VECTOR: Allocating Cstring");
+			*pos = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1);
+			upstreammemory::stref->message("VECTOR: Allocating Cstring");
 			memcpy(*pos, element, len);
 			*(*pos + len) = '\0';
 
@@ -303,7 +334,8 @@ namespace ME
 			if (m_Capacity == m_Size) expand(std::ceilf(m_Size * ME_VECTOR_SCALE));
 
 			size_t len = strlen(element);
-			*end() = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1, "VECTOR: Allocating Cstring");
+			*end() = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1);
+			upstreammemory::stref->message("VECTOR: Allocating Cstring");
 			char* it = *end();
 			memcpy(it, element, len);
 			*(it + len) = '\0';
@@ -322,7 +354,8 @@ namespace ME
 			memmove(m_Head + at + 1, m_Head + at, (m_Size - at) * sizeof(const char*));
 
 			size_t len = strlen(element);
-			*pos = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1, "VECTOR: Allocating Cstring");
+			*pos = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1);
+			upstreammemory::stref->message("VECTOR: Allocating Cstring");
 			memcpy(*pos, element, len);
 			*(*pos + len) = '\0';
 
@@ -335,7 +368,8 @@ namespace ME
 
 			ME_MEM_ERROR(belongs(pos), "VECTOR: Position out of scope");
 
-			upstreammemory::stref->deallocate(*pos, "VECTOR: Deallocating Cstring while erase");
+			upstreammemory::stref->deallocate(*pos);
+			upstreammemory::stref->message("VECTOR: Deallocating Cstring while erase");
 
 			memmove(pos, pos + 1, (end() - pos) * sizeof(const char*));
 
@@ -355,15 +389,18 @@ namespace ME
 		void clear() {
 			char** it = begin();
 			if (it != end())
-				while (it != end())
-					upstreammemory::stref->deallocate(*it++, "VECTOR: Deallocating Cstring");
+				while (it != end()) {
+					upstreammemory::stref->deallocate(*it++);
+					upstreammemory::stref->message("VECTOR: Deallocating CString");
+				}
 			m_Size = 0;
 		}
 
 		void release() {
 			if (m_Capacity != 0) {
 				clear();
-				upstreammemory::stref->deallocate(m_Head, "VECTOR: Deinitializing");
+				upstreammemory::stref->deallocate(m_Head);
+				upstreammemory::stref->message("VECTOR: Deinitializing");
 				m_Capacity = 0;
 			}
 		}
@@ -379,7 +416,8 @@ namespace ME
 	private:
 		void expand(const size_t& count)
 		{
-			upstreammemory::stref->reallocate((void*&)m_Head, count * sizeof(char*), "VECTOR: Expanding");
+			upstreammemory::stref->reallocate((void*&)m_Head, count * sizeof(char*));
+			upstreammemory::stref->message("VECTOR: Expanding");
 			m_Capacity += count;
 		}
 
