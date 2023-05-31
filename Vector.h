@@ -28,7 +28,7 @@ namespace ME
 		Vector(const std::initializer_list<T>& list)
 			:m_Size(list.size())
 		{
-			m_Capacity = std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE);
+			m_Capacity = static_cast<size_t>(std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE));
 			m_Head = (T*)upstreammemory::stref->allocate(sizeof(T) * (m_Capacity));
 			upstreammemory::stref->message("VECTOR: Initialization using list");
 
@@ -48,7 +48,7 @@ namespace ME
 		Vector& operator=(const std::initializer_list<T>& list) {
 			m_Size = list.size();
 			if (m_Capacity < m_Size) {
-				m_Capacity = std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE);
+				m_Capacity = static_cast<size_t>(std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE));
 				upstreammemory::stref->deallocate(m_Head);
 				upstreammemory::stref->message("VECTOR: Insufficient capacity");
 				m_Head = (T*)upstreammemory::stref->allocate(sizeof(T) * m_Capacity);
@@ -65,7 +65,7 @@ namespace ME
 		Vector& operator=(const Vector& right) {
 			m_Size = right.size();
 			if (m_Capacity < m_Size) {
-				m_Capacity = std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE);
+				m_Capacity = static_cast<size_t>(std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE));
 				upstreammemory::stref->deallocate(m_Head);
 				upstreammemory::stref->message("VECTOR: Insufficient capacity");
 				m_Head = (T*)upstreammemory::stref->allocate(sizeof(T) * m_Capacity);
@@ -87,7 +87,7 @@ namespace ME
 		}
 
 		void push_back(const T& element) {
-			if (m_Capacity == m_Size) expand(std::ceilf(m_Size * ME_VECTOR_SCALE));
+			if (m_Capacity == m_Size) expand(static_cast<size_t>(std::ceilf(m_Size * ME_VECTOR_SCALE)));
 
 			*end() = element;
 			m_Size++;
@@ -98,7 +98,7 @@ namespace ME
 			ME_MEM_ERROR(belongs(pos), "VECTOR: Position out of scope");
 
 			size_t at = (pos - m_Head);
-			if (m_Capacity == m_Size) expand(std::ceilf(m_Size * ME_VECTOR_SCALE));
+			if (m_Capacity == m_Size) expand(static_cast<size_t>(std::ceilf(m_Size * ME_VECTOR_SCALE)));
 
 			memmove(m_Head + at + 1, m_Head + at, (m_Size - at) * sizeof(T));
 			*pos = element;
@@ -107,7 +107,7 @@ namespace ME
 
 		template<typename ...Args>
 		void emplace_back(Args&& ...args) {
-			if (m_Capacity == m_Size) expand(std::ceilf(m_Size * ME_VECTOR_SCALE));
+			if (m_Capacity == m_Size) expand(static_cast<size_t>(std::ceilf(m_Size * ME_VECTOR_SCALE)));
 
 			new (end()) T(args...);
 			m_Size++;
@@ -119,7 +119,7 @@ namespace ME
 			ME_MEM_ERROR(belongs(pos), "VECTOR: Position out of scope");
 
 			size_t at = (pos - m_Head);
-			if (m_Capacity == m_Size) expand(std::ceilf(m_Size * ME_VECTOR_SCALE));
+			if (m_Capacity == m_Size) expand(static_cast<size_t>(std::ceilf(m_Size * ME_VECTOR_SCALE)));
 
 			memmove(m_Head + at + 1, m_Head + at, (m_Size - at) * sizeof(T));
 			new (pos) T(args...);
@@ -200,7 +200,7 @@ namespace ME
 		Vector(const std::initializer_list<const char*>& list)
 			:m_Size(list.size())
 		{
-			m_Capacity = std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE);
+			m_Capacity = static_cast<size_t>(std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE));
 			m_Head = (char**)upstreammemory::stref->allocate(sizeof(const char*) * (m_Capacity));
 			upstreammemory::stref->message("VECTOR: Initialization");
 
@@ -239,7 +239,7 @@ namespace ME
 
 			m_Size = right.size();
 			if (m_Capacity < m_Size) {
-				m_Capacity = std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE);
+				m_Capacity = static_cast<size_t>(std::ceilf(m_Size + m_Size * ME_VECTOR_SCALE));
 				upstreammemory::stref->deallocate(m_Head);
 				upstreammemory::stref->message("VECTOR: Insufficient capacity");
 				m_Head = (char**)upstreammemory::stref->allocate(sizeof(const char*) * m_Capacity);
@@ -299,7 +299,7 @@ namespace ME
 		}
 
 		void push_back(const char* element) {
-			if (m_Capacity == m_Size) expand(std::ceilf(m_Size * ME_VECTOR_SCALE));
+			if (m_Capacity == m_Size) expand(static_cast<size_t>(std::ceilf(m_Size * ME_VECTOR_SCALE)));
 
 			size_t len = strlen(element);
 			*end() = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1);
@@ -316,7 +316,7 @@ namespace ME
 			ME_MEM_ERROR(belongs(pos), "VECTOR: Position out of scope");
 
 			size_t at = (pos - m_Head);
-			if (m_Capacity == m_Size) expand(std::ceilf(m_Size * ME_VECTOR_SCALE));
+			if (m_Capacity == m_Size) expand(static_cast<size_t>(std::ceilf(m_Size * ME_VECTOR_SCALE)));
 
 			pos = m_Head + at;
 			memmove(m_Head + at + 1, m_Head + at, (m_Size - at) * sizeof(const char*));
@@ -331,7 +331,7 @@ namespace ME
 		}
 
 		void emplace_back(const char* element) {
-			if (m_Capacity == m_Size) expand(std::ceilf(m_Size * ME_VECTOR_SCALE));
+			if (m_Capacity == m_Size) expand(static_cast<size_t>(std::ceilf(m_Size * ME_VECTOR_SCALE)));
 
 			size_t len = strlen(element);
 			*end() = (char*)upstreammemory::stref->allocate(sizeof(char) * len + 1);
@@ -348,7 +348,7 @@ namespace ME
 			ME_MEM_ERROR(belongs(pos), "VECTOR: Position out of scope");
 
 			size_t at = (pos - m_Head);
-			if (m_Capacity == m_Size) expand(std::ceilf(m_Size * ME_VECTOR_SCALE));
+			if (m_Capacity == m_Size) expand(static_cast<size_t>(std::ceilf(m_Size * ME_VECTOR_SCALE)));
 
 			pos = m_Head + at;
 			memmove(m_Head + at + 1, m_Head + at, (m_Size - at) * sizeof(const char*));

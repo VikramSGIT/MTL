@@ -2,7 +2,7 @@
 
 #define ME_BUCKETSIZE 8 // make sure it to be powers of 2
 #define ME_BUCKETCOUNT 10000
-
+ 
 #define ME_POOLGUARDCOUNT 2 // used to identify the start and end of pool
 #define ME_POOLGUARD -1.01101110
 
@@ -96,7 +96,7 @@ namespace ME
 				if (cur->next - cur != 1)
 					continious = 0;
 
-				if (continious * sizeof(bucket) >= (size + (ME_BUCKETSIZE * ME_BUCKETGUARDCOUNT) + ME_METASIZE))
+				if (continious * sizeof(bucket) >= (size + ME_METASIZE) + ME_BUCKETSIZE * ME_BUCKETGUARDCOUNT)
 				{
 					m_nextFree = cur->next;
 #ifdef ME_MEM_DEBUG
@@ -269,7 +269,7 @@ namespace ME
 #else
 			res = (reinterpret_cast<bucket*>(ptr) - 1)->meta.size;
 #endif
-			return std::ceilf(res * 1.0f/ME_BUCKETSIZE);
+			return static_cast<size_t>(std::ceilf(res * 1.0f/ME_BUCKETSIZE));
 		}
 
 		inline bucket* BucketCorrection(const void* ptr)

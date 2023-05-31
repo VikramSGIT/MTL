@@ -58,13 +58,17 @@ namespace ME
         virtual void* reallocate(void *&ptr, const size_t& size) = 0;
         virtual void deallocate(void* ptr) = 0;
         virtual void forced_deallocated(void* ptr) = 0;
-
+#ifdef ME_MEM_DEBUG
         template<typename ...Args>
         void message(Args... args) {
             std::cout << "WARNING: ";
             ((std::cout << args << " "), ...);
             std::cout << std::endl;
         }
+#else
+        template<typename ...Args>
+        void message(Args... args) {}
+#endif
     };
     class STDUpstreamMemory : public UpstreamMemory
     {

@@ -24,6 +24,9 @@ void InitAllocator()
         ME::MemoryManager::Allocator = new  ME::PoolAllocator<ME::STDUpstreamMemory>;
         enabled = true;
     }
+    else {
+        std::cout << "WARNING: Global Allocators already initialized!" << std::endl;
+    }
 }
 
 void DeInitAllocator()

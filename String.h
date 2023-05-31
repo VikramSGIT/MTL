@@ -14,7 +14,7 @@ namespace ME
 	public:	
 
 		String()
-			:m_Size(0), m_String(nullptr) {}
+			:m_Size(0), m_String(nullptr), m_Capacity(0) {}
 
 		String(const char* string)
 			:m_Size(strlen(string))
