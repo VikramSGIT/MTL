@@ -4,8 +4,9 @@
 
 Follow us on:
 
- [![Instagram](./Branding/icons/Discord%20logo.png)](https://instagram.com/uchiha_coder?igshid=NGExMmI2YTkyZg==)
-[![Discord](./Branding/icons/Instagram%20Logo.png)]("https://discord.gg/xTdkh8cv")
+ [<img src="https://cdn.cdnlogo.com/logos/i/4/instagram.svg" height="33" alt="Instagram">](https://instagram.com/uchiha_coder?igshid=NGExMmI2YTkyZg==)
+ &nbsp;&nbsp;
+[<img src="https://assets-global.website-files.com/6257adef93867e50d84d30e2/636e0a6a49cf127bf92de1e2_icon_clyde_blurple_RGB.png" height="30" alt="Discord">](https://discord.gg/xTdkh8cv)
 
 ## Introduction
 
