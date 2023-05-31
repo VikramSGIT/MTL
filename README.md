@@ -2,6 +2,11 @@
 
 <p align="center"><img width="500" alt="MarsUtilies" src="https://github.com/VikramSGIT/MTL/assets/49726816/957269aa-20fd-4aa8-9a82-d7b2e06ae8d1"></p>
 
+Follow us on:
+
+ [![Instagram](./Branding/icons/Discord%20logo.png)](https://instagram.com/uchiha_coder?igshid=NGExMmI2YTkyZg==)
+[![Discord](./Branding/icons/Instagram%20Logo.png)]("https://discord.gg/xTdkh8cv")
+
 ## Introduction
 
 Mars Templated Libraries (MTL) is a collection of templated libraries in C++ designed to provide convenient and efficient data structures and utilities. Built on top of a highly optimized pooled allocator, MTL offers blazing-fast allocations and deallocations, which are 2X faster than traditional methods. This speed improvement extends to the utilities and data structures provided by MTL, making them ideal for larger applications with complex memory management requirements. Additionally, MTL supports encryption of the underlying memory and includes caching mechanisms for frequently used memory, further enhancing security and performance.
@@ -73,14 +78,7 @@ MTL was developed by Uchiha and is inspired by various open-source libraries and
 
 ## Contact
 
-If you have any questions, feedback, or inquiries regarding MTL, feel free to reach out at
-
-<a href="https://instagram.com/uchiha_coder?igshid=NGExMmI2YTkyZg==">
-  <img width="30" alt="Instagram" src="https://github.com/VikramSGIT/MTL/assets/49726816/8c3e7a1a-d287-4c4f-a083-b87f0c1c2930">
-</a>
-<a href="https://discord.gg/xTdkh8cv">
-  <img width="30" atl="Discord" src="https://github.com/VikramSGIT/MTL/assets/49726816/311be2ea-e690-4f99-8527-0b8f1f1cc045">
-</a>
+If you have any questions, feedback, or inquiries regarding MTL, feel free to reach out (socials are on the top of readme)
 
 
 Happy coding with Mars Templated Libraries (MTL)!
