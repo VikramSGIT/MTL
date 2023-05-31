@@ -75,7 +75,6 @@ MTL was developed by Uchiha and is inspired by various open-source libraries and
 
 If you have any questions, feedback, or inquiries regarding MTL, feel free to reach out at
 
-
 <a href="https://instagram.com/uchiha_coder?igshid=NGExMmI2YTkyZg==">
   <img width="30" alt="Instagram" src="https://github.com/VikramSGIT/MTL/assets/49726816/8c3e7a1a-d287-4c4f-a083-b87f0c1c2930">
 </a>
