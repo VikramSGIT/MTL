@@ -25,15 +25,19 @@ void InitAllocator()
         enabled = true;
     }
     else {
+#ifndef ME_ISOLATE
+        ME_CORE_WARNING("WARNING: Global Allocators already initialized!");
+#else
         std::cout << "WARNING: Global Allocators already initialized!" << std::endl;
+#endif
     }
 }
 
 void DeInitAllocator()
 {
 #ifndef ME_ISOLATE
-    ME_CORE_ERROR(MemoryManager::Allocator->getUsedMemory(), "MEMORYMANAGER: Memory leak detected (<={}/{} bytes)",
-        MemoryManager::Allocator->getUsedMemory(), MemoryManager::Allocator->getMaxMemory())
+    ME_CORE_ERROR(ME::MemoryManager::Allocator->getUsedMemory(), "MEMORYMANAGER: Memory leak detected (<={}/{} bytes)",
+        ME::MemoryManager::Allocator->getUsedMemory(), ME::MemoryManager::Allocator->getMaxMemory());
 #else
     if (ME::MemoryManager::Allocator->getUsedMemory())
         std::cerr << "ERROR: MEMORYMANAGER: Memory leak detected (<=" << ME::MemoryManager::Allocator->getUsedMemory() << "/"

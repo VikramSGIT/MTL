@@ -143,7 +143,17 @@ namespace ME
 			ME_MEM_ERROR(index < m_Size, "VERTOR: Index out of range!!");
 			return *(m_Head + index);
 		}
+		const T& at(size_t index) const
+		{
+			ME_MEM_ERROR(index < m_Size, "VERTOR: Index out of range!!");
+			return *(m_Head + index);
+		}
 		T& operator[](size_t index)
+		{
+			ME_MEM_ERROR(index < m_Size, "VECTOR: Index out of range!!");
+			return *(m_Head + index);
+		}
+		const T& operator[](size_t index) const
 		{
 			ME_MEM_ERROR(index < m_Size, "VECTOR: Index out of range!!");
 			return *(m_Head + index);
